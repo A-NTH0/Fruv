@@ -1,0 +1,54 @@
+/* El fondo oscuro */
+.modal {
+    display: none; 
+    position: fixed; 
+    justify-content: center;
+    align-items: center;
+    z-index: 100; 
+    left: 0;
+    top: 0;
+    width: 100%; 
+    height: 100%; 
+    background-color: rgba(0,0,0,0.5); 
+}
+
+/* La caja del contenido */
+.modal-content {
+    background-color: #fff;
+    margin: 10% auto; 
+    padding: 20px;
+    border-radius: 8px;
+    width: 40%;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+/* El botón de cerrar */
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close:hover {
+    color: black;
+}
+
+/* Estilos para el botón de registrar merma */
+#openBtn {
+    background-color: #51080d;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    position: fixed;
+    top: 140px;
+    right: 50px;
+
+}
+#openBtn:hover {
+    background-color: #7a0b14;
+}

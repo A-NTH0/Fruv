@@ -2,10 +2,20 @@
 
 namespace App\Controllers;
 
-class Home extends BaseController
+use App\Models\ProductoModel;
+
+class HomeController extends BaseController
 {
-    public function login(): string
+    public function index()
     {
-        return view('login');
+        helper('url');
+        $model = new ProductoModel();
+
+        $data = [
+            'stats'    => $model->getDashboardStats(),
+            'entradas' => $model->getUltimasEntradas(),
+        ];
+
+        return view('dashboard', $data);
     }
 }

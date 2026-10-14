@@ -1,0 +1,63 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+.card-figma {
+    background: #ffffff;
+    padding: 35px;
+    border-radius: 25px; 
+    border: 1px solid #f1f1f1;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.04);
+    width: 420px;
+    font-family: 'Inter', sans-serif;
+}
+
+.card-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-bottom: 30px;
+    color: #111827;
+}
+
+.label-figma {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #1f2937;
+}
+
+.input-figma {
+    width: 100%;
+    padding: 12px 0; 
+    border: none;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 1rem;
+    color: #6b7280;
+    margin-bottom: 25px;
+    background: transparent;
+    outline: none;
+}
+
+.box-caducidad-figma {
+    background-color: #fcecf1; 
+    padding: 15px 20px;
+    border-radius: 15px;
+    margin-bottom: 25px;
+}
+
+.btn-submit-figma {
+    width: 100%;
+    padding: 16px;
+    background-color: #a1143a; 
+    color: white;
+    border: none;
+    border-radius: 15px;
+    font-weight: 600;
+    font-size: 1.1rem;
+    cursor: pointer;
+}
+
+.btn-tab.active {
+    border: 2px solid #a1143a !important;
+    color: #a1143a !important;
+    font-weight: 700;
+}
