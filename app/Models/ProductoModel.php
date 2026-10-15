@@ -6,17 +6,24 @@ class ProductoModel extends Model
 {
     protected $table         = 'producto';
     protected $primaryKey    = 'id_producto';
-    protected $allowedFields = ['nombre', 'descripcion', 'imagen', 'categoria', 'unidad_venta', 'precio', 'total'];
+    protected $allowedFields = ['nombre', 'descripcion', 'imagen', 'categoria', 'unidad_venta', 'precio', 'total', 'estado'];
     protected $useTimestamps = false;
 
-    public function getProductos(string $busqueda = ''): static
+    public function getProductos(string $busqueda = '', string $estado = ''): static
     {
+        $this->select('producto.*, COALESCE(existencias.exis_venta, 0) as stock_disponible, COALESCE(existencias.exis_total_general, 0) as stock_general')
+             ->join('existencias', 'existencias.id_producto1 = producto.id_producto', 'left');
+
         if ($busqueda !== '') {
             $this->groupStart()
-                 ->like('nombre', $busqueda)
-                 ->orLike('categoria', $busqueda)
-                 ->orLike('descripcion', $busqueda)
+                 ->like('producto.nombre', $busqueda)
+                 ->orLike('producto.categoria', $busqueda)
+                 ->orLike('producto.descripcion', $busqueda)
                  ->groupEnd();
+        }
+
+        if ($estado !== '') {
+            $this->where('producto.estado', $estado);
         }
 
         return $this;
@@ -34,7 +41,7 @@ class ProductoModel extends Model
         $transito   = 0;
         if ($db->tableExists('status')) {
             $pendientes = $db->table('status')
-                             ->whereIn('estado', ['pedido', 'pedido_confirmado'])
+                             ->whereIn('estado', ['pedido', 'confirmado'])
                              ->countAllResults();
 
             $transito = $db->table('status')
@@ -91,6 +98,11 @@ class ProductoModel extends Model
         return $this->findAll();
     }
 
+    public function getProductosActivos()
+    {
+        return $this->where('estado', 'activo')->findAll();
+    }
+
     public function obtenerProductoPorId($id)
     {
         return $this->find($id);
@@ -98,7 +110,21 @@ class ProductoModel extends Model
 
     public function guardarProducto($data)
     {
-        return $this->insert($data);
+        $db = \Config\Database::connect();
+        $idNuevo = $this->insert($data, true);
+
+        // Crear registro base en existencias para que el trigger 'actualizar_por_nueva_entrada' funcione
+        if ($idNuevo && $db->tableExists('existencias')) {
+            $db->table('existencias')->insert([
+                'exis_total_general' => 0,
+                'exis_bloqueo'       => 0,
+                'exis_venta'         => 0,
+                'exis_total_dia'     => 0,
+                'id_producto1'       => $idNuevo,
+            ]);
+        }
+
+        return $idNuevo;
     }
 
     public function actualizarProducto($id, $data)
@@ -106,16 +132,46 @@ class ProductoModel extends Model
         return $this->update($id, $data);
     }
 
+    public function cambiarEstado(int $id, string $nuevoEstado)
+    {
+        return $this->update($id, ['estado' => $nuevoEstado]);
+    }
+
+    /**
+     * Verifica si el producto no se puede borrar físicamente por tener:
+     * 1) Stock mayor a 0 en existencias
+     * 2) Entradas registradas en 'entrada' (FK id_producto2)
+     * 3) Pedidos registrados en 'producto_pedido' (FK id_producto3)
+     */
     public function tieneExistencias(int $idProducto): bool
     {
         $db = \Config\Database::connect();
-        return $db->table('existencias')
-                  ->where('id_producto1', $idProducto)
-                  ->countAllResults() > 0;
+
+        $tieneStock = $db->table('existencias')
+                         ->where('id_producto1', $idProducto)
+                         ->groupStart()
+                             ->where('exis_total_general >', 0)
+                             ->orWhere('exis_venta >', 0)
+                             ->orWhere('exis_bloqueo >', 0)
+                         ->groupEnd()
+                         ->countAllResults() > 0;
+
+        $tieneEntradas = $db->table('entrada')
+                            ->where('id_producto2', $idProducto)
+                            ->countAllResults() > 0;
+
+        $tienePedidos = $db->table('producto_pedido')
+                           ->where('id_producto3', $idProducto)
+                           ->countAllResults() > 0;
+
+        return ($tieneStock || $tieneEntradas || $tienePedidos);
     }
 
     public function eliminarProducto($id)
     {
+        $db = \Config\Database::connect();
+        // Si solo tenía su fila en 0 en existencias (sin entradas ni pedidos), limpiamos esa fila primero por la FK
+        $db->table('existencias')->where('id_producto1', (int) $id)->delete();
         return $this->delete($id);
     }
 

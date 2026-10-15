@@ -6,16 +6,18 @@ class ProductosController extends BaseController
 {
     public function index()
     {
-        $model    = new ProductoModel();
-        $busqueda = trim($this->request->getVar('buscar') ?? '');
+        $model        = new ProductoModel();
+        $busqueda     = trim($this->request->getVar('buscar') ?? '');
+        $estadoFiltro = trim($this->request->getVar('estado') ?? '');
 
-        $productos = $model->getProductos($busqueda)->paginate(9, 'group1');
+        $productos = $model->getProductos($busqueda, $estadoFiltro)->paginate(9, 'group1');
 
         $data = [
             'title'         => 'Catálogo de Productos',
             'productos'     => $productos,
             'pager'         => $model->pager,
             'busqueda'      => $busqueda,
+            'estadoFiltro'  => $estadoFiltro,
             'pagina_actual' => 'productos',
             'isAjax'        => $this->request->isAJAX(),
         ];
@@ -33,12 +35,17 @@ class ProductosController extends BaseController
             $archivo->move(ROOTPATH . 'public/uploads', $nombreImagen);
         }
 
+        $precio = (float) ($this->request->getPost('precio') ?: 0);
+
         $model = new ProductoModel();
         $model->guardarProducto([
             'nombre'       => $this->request->getPost('nombre'),
             'descripcion'  => $this->request->getPost('descripcion'),
             'categoria'    => $this->request->getPost('categoria'),
             'unidad_venta' => $this->request->getPost('unidad_venta'),
+            'precio'       => $precio,
+            'total'        => $precio,
+            'estado'       => $this->request->getPost('estado') ?: 'activo',
             'imagen'       => $nombreImagen,
         ]);
 
@@ -59,15 +66,45 @@ class ProductosController extends BaseController
             $archivo->move(ROOTPATH . 'public/uploads', $nombreImagen);
         }
 
+        $precio = (float) ($this->request->getPost('precio') ?: 0);
+
         $model->actualizarProducto($id, [
             'nombre'       => $this->request->getPost('nombre'),
             'descripcion'  => $this->request->getPost('descripcion'),
             'categoria'    => $this->request->getPost('categoria'),
             'unidad_venta' => $this->request->getPost('unidad_venta'),
+            'precio'       => $precio,
+            'total'        => $precio,
+            'estado'       => $this->request->getPost('estado') ?: 'activo',
             'imagen'       => $nombreImagen,
         ]);
 
         return redirect()->to(base_url('productos'));
+    }
+
+    public function cambiarEstado($id = null)
+    {
+        if (!$id) {
+            return $this->response->setJSON(['ok' => false, 'mensaje' => 'ID no válido']);
+        }
+
+        $model    = new ProductoModel();
+        $producto = $model->obtenerProductoPorId((int) $id);
+
+        if (!$producto) {
+            return $this->response->setJSON(['ok' => false, 'mensaje' => 'Producto no encontrado']);
+        }
+
+        $estadoActual = strtolower($producto['estado'] ?? 'activo');
+        $nuevoEstado  = ($estadoActual === 'activo') ? 'inactivo' : 'activo';
+
+        $model->cambiarEstado((int) $id, $nuevoEstado);
+
+        return $this->response->setJSON([
+            'ok'          => true,
+            'nuevoEstado' => $nuevoEstado,
+            'mensaje'     => 'El producto ahora está ' . strtoupper($nuevoEstado),
+        ]);
     }
 
     public function verificarEliminar($id = null)
@@ -80,8 +117,9 @@ class ProductosController extends BaseController
 
         if ($model->tieneExistencias((int) $id)) {
             return $this->response->setJSON([
-                'puede'   => false,
-                'mensaje' => 'Este producto tiene existencias registradas en inventario y no puede ser eliminado. Primero da de baja todas sus entradas.',
+                'puede'            => false,
+                'tieneExistencias' => true,
+                'mensaje'          => 'Este producto tiene existencias, entradas o pedidos asociados en la base de datos y no puede eliminarse físicamente. ¿Deseas marcarlo como INACTIVO?',
             ]);
         }
 
@@ -91,7 +129,9 @@ class ProductosController extends BaseController
     public function eliminar($id)
     {
         $model = new ProductoModel();
-        $model->eliminarProducto($id);
+        if (!$model->tieneExistencias((int) $id)) {
+            $model->eliminarProducto((int) $id);
+        }
         return redirect()->to(base_url('productos'));
     }
 }
