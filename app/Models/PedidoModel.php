@@ -455,7 +455,7 @@ class PedidoModel extends Model
         $productoModel = new ProductoModel(); // Usamos el modelo para traer la lógica nueva
 
         return [
-            'clientes'     => $db->table('cliente')->get()->getResultArray(),
+            'clientes'     => (new ClienteModel())->getClientesParaPedido(), // solo datos mínimos (RNF-05)
             'productos'    => $productoModel->getProductosParaVenta(), // <--- Cambio clave aquí
             'repartidores' => $db->table('repartidor')->get()->getResultArray(),
         ];

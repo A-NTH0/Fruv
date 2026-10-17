@@ -11,58 +11,80 @@
     <link rel="stylesheet" href="<?= base_url('css/clientes.css') ?>">
 </head>
 <body class="bg-gray-50">
+    <a href="#contenido" class="sr-only focus:not-sr-only focus:absolute focus:z-[2000] focus:bg-white focus:text-gray-900 focus:p-3 focus:rounded">Saltar al contenido</a>
     <div class="flex min-h-screen">
         <?= view('plantilla/menu') ?>
 
-        <main class="main-content flex-1 p-8">
+        <main id="contenido" class="main-content flex-1 p-8">
             <div class="flex justify-between items-center mb-6">
                 <div>
                     <h1 class="text-2xl font-bold text-gray-800">Catálogo de Clientes</h1>
-                    <p class="text-gray-500">Gestión de clientes y contacto</p>
+                    <p class="text-gray-600">Gestión de clientes y contacto</p>
                 </div>
                 
                 <div class="flex items-center gap-4">
                     <form action="<?= base_url('clientes') ?>" method="get" id="formBuscar" class="relative" onsubmit="event.preventDefault();">
-                        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        <i data-lucide="search" aria-hidden="true" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                        <label for="inputBuscar" class="sr-only">Buscar cliente por nombre, apellido o teléfono</label>
                         <input type="text" name="buscar" id="inputBuscar" 
                                value="<?= esc($busqueda ?? '') ?>" 
                                placeholder="Buscar cliente..." 
                                oninput="buscarDinamico()"
                                autocomplete="off"
-                               class="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none text-sm w-64 shadow-sm">
+                               class="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-600 focus:border-pink-600 outline-none text-sm w-64 shadow-sm">
                     </form>
 
                     <button onclick="abrirModalNuevo()" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg transition-transform active:scale-95">
-                        <i data-lucide="plus" class="w-5 h-5"></i> Nuevo Cliente
+                        <i data-lucide="plus" class="w-5 h-5" aria-hidden="true"></i> Nuevo Cliente
                     </button>
                 </div>
             </div>
 
-            <div id="contenedor-clientes" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div id="contenedor-clientes" aria-live="polite" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <?php if (!empty($clientes)): ?>
                     <?php foreach ($clientes as $cliente): ?>
-                    <div class="cliente-card p-6 bg-white rounded-xl shadow-sm border border-gray-100">
+                    <?php
+                        $compras       = (int) ($cliente['compras'] ?? 0);
+                        $esPreferencial = \App\Models\ClienteModel::esPreferencial($compras);
+                        $faltan        = max(0, \App\Models\ClienteModel::UMBRAL_PREFERENCIAL - $compras);
+                        $datosEditar   = [
+                            'id_cliente' => $cliente['id_cliente'], 'nombre' => $cliente['nombre'],
+                            'ap_paterno' => $cliente['ap_paterno'], 'ap_materno' => $cliente['ap_materno'],
+                            'telefono'   => $cliente['telefono'],   'calle'      => $cliente['calle'],
+                            'numero'     => $cliente['numero'],     'colonia'    => $cliente['colonia'],
+                            'municipio'  => $cliente['municipio'],  'estado'     => $cliente['estado'],
+                        ];
+                        $nombreCompleto = trim($cliente['nombre'] . ' ' . $cliente['ap_paterno'] . ' ' . $cliente['ap_materno']);
+                    ?>
+                    <article class="cliente-card p-6 bg-white rounded-xl shadow-sm border border-gray-100" aria-label="Cliente <?= esc($nombreCompleto, 'attr') ?>">
                         <div class="flex items-start gap-4">
                             <div class="icon-container bg-pink-50 text-pink-600 p-3 rounded-lg">
-                                <i data-lucide="user" class="w-6 h-6"></i>
+                                <i data-lucide="user" class="w-6 h-6" aria-hidden="true"></i>
                             </div>
                             <div class="flex-1">
                                <h3 class="font-bold text-gray-800 text-lg uppercase tracking-tight">
-                                 <?= $cliente['nombre'] ?> <?= $cliente['ap_paterno'] ?> <?= $cliente['ap_materno'] ?>
+                                 <?= esc($nombreCompleto) ?>
                                </h3>
+                               <?php if ($esPreferencial): ?>
+                                   <span class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-xs font-bold">
+                                       <i data-lucide="star" class="w-3 h-3" aria-hidden="true"></i> Cliente preferencial
+                                   </span>
+                               <?php else: ?>
+                                   <p class="mt-1 text-xs text-gray-600"><?= $compras ?> compra(s) · faltan <?= $faltan ?> para ser preferencial</p>
+                               <?php endif; ?>
                                 
                                 <div class="mt-4 space-y-2 text-sm text-gray-600">
                                     <p class="flex items-center gap-2">
-                                        <i data-lucide="phone" class="w-4 h-4 text-gray-400"></i> 
-                                        <?= $cliente['telefono'] ?>
+                                        <i data-lucide="phone" class="w-4 h-4 text-gray-500" aria-hidden="true"></i> 
+                                        <span class="sr-only">Teléfono:</span> <?= esc($cliente['telefono']) ?>
                                     </p>
                                     <p class="flex items-start gap-2">
-                                        <i data-lucide="map-pin" class="w-4 h-4 text-gray-400 mt-0.5"></i> 
+                                        <i data-lucide="map-pin" class="w-4 h-4 text-gray-500 mt-0.5" aria-hidden="true"></i> 
                                         <span>
-                                            <?= (!empty($cliente['calle'])) ? "{$cliente['calle']} #{$cliente['numero']}, {$cliente['colonia']}" : 'Sin dirección' ?>
+                                            <?= (!empty($cliente['calle'])) ? esc("{$cliente['calle']} #{$cliente['numero']}, {$cliente['colonia']}") : 'Sin dirección' ?>
                                             <br>
-                                            <span class="text-xs font-bold text-pink-500">
-                                                <?= $cliente['municipio'] ?? '' ?><?= (!empty($cliente['municipio']) && !empty($cliente['estado'])) ? ', ' : '' ?><?= $cliente['estado'] ?? '' ?>
+                                            <span class="text-xs font-bold text-pink-700">
+                                                <?= esc($cliente['municipio'] ?? '') ?><?= (!empty($cliente['municipio']) && !empty($cliente['estado'])) ? ', ' : '' ?><?= esc($cliente['estado'] ?? '') ?>
                                             </span>
                                         </span>
                                     </p>
@@ -71,17 +93,20 @@
                         </div>
                         
                         <div class="mt-6 flex gap-2">
-                            <button onclick='editarCliente(<?= json_encode($cliente) ?>)' class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors">
-                                <i data-lucide="edit-3" class="w-4 h-4"></i> Editar
+                            <button type="button" data-cliente="<?= esc(json_encode($datosEditar), 'attr') ?>" onclick="editarCliente(JSON.parse(this.dataset.cliente))" aria-label="Editar cliente <?= esc($nombreCompleto, 'attr') ?>" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                                <i data-lucide="edit-3" class="w-4 h-4" aria-hidden="true"></i> Editar
                             </button>
-                            <button onclick="confirmarEliminar(<?= $cliente['id_cliente'] ?>)" class="bg-red-50 hover:bg-red-100 text-red-600 p-2 rounded-lg transition-colors">
-                                <i data-lucide="trash-2" class="w-5 h-5"></i>
+                            <button type="button" onclick="confirmarBaja(<?= (int) $cliente['id_cliente'] ?>)" aria-label="Dar de baja a <?= esc($nombreCompleto, 'attr') ?>" title="Dar de baja (borra sus datos personales)" class="bg-amber-50 hover:bg-amber-100 text-amber-900 p-2 rounded-lg transition-colors">
+                                <i data-lucide="user-x" class="w-5 h-5" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" onclick="confirmarEliminar(<?= (int) $cliente['id_cliente'] ?>)" aria-label="Eliminar cliente <?= esc($nombreCompleto, 'attr') ?>" class="bg-red-50 hover:bg-red-100 text-red-700 p-2 rounded-lg transition-colors">
+                                <i data-lucide="trash-2" class="w-5 h-5" aria-hidden="true"></i>
                             </button>
                         </div>
-                    </div>
+                    </article>
                     <?php endforeach; ?>
                 <?php else: ?>
-                    <div class="col-span-full py-12 text-center text-gray-400 italic">
+                    <div class="col-span-full py-12 text-center text-gray-600 italic">
                         No se encontraron clientes.
                     </div>
                 <?php endif; ?>
@@ -136,12 +161,12 @@
             <?php endif; ?>
 
             <!-- ── Modal Nuevo / Editar Cliente ── -->
-            <div id="modalCliente" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+            <div id="modalCliente" role="dialog" aria-modal="true" aria-labelledby="modalTitle" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
                 <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
                     <div class="p-6 flex justify-between items-center border-b border-gray-100">
                         <h2 id="modalTitle" class="text-2xl font-extrabold text-gray-800">Cliente</h2>
-                        <button onclick="cerrarModal()" class="text-gray-400 hover:text-gray-600">
-                            <i data-lucide="x" class="w-6 h-6"></i>
+                        <button type="button" onclick="cerrarModal()" aria-label="Cerrar ventana" class="text-gray-600 hover:text-gray-900">
+                            <i data-lucide="x" class="w-6 h-6" aria-hidden="true"></i>
                         </button>
                     </div>
 
@@ -149,48 +174,48 @@
                         <input type="hidden" name="id_cliente" id="input_id">
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nombre *</label>
-                                <input type="text" name="nombre" id="input_nombre" required class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none">
+                                <label for="input_nombre" class="block text-xs font-bold text-gray-700 uppercase mb-1">Nombre *</label>
+                                <input type="text" name="nombre" id="input_nombre" required class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-600 focus:border-pink-600 outline-none">
                             </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Ap. Paterno</label>
-                                    <input type="text" name="ap_paterno" id="input_ap_paterno" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none">
+                                    <label for="input_ap_paterno" class="block text-xs font-bold text-gray-700 uppercase mb-1">Ap. Paterno</label>
+                                    <input type="text" name="ap_paterno" id="input_ap_paterno" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-600 focus:border-pink-600 outline-none">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Ap. Materno</label>
-                                    <input type="text" name="ap_materno" id="input_ap_materno" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none">
+                                    <label for="input_ap_materno" class="block text-xs font-bold text-gray-700 uppercase mb-1">Ap. Materno</label>
+                                    <input type="text" name="ap_materno" id="input_ap_materno" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-600 focus:border-pink-600 outline-none">
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Teléfono *</label>
-                                <input type="text" name="telefono" id="input_telefono" required class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none">
+                                <label for="input_telefono" class="block text-xs font-bold text-gray-700 uppercase mb-1">Teléfono *</label>
+                                <input type="text" name="telefono" id="input_telefono" required class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-600 focus:border-pink-600 outline-none">
                             </div>
                         </div>
 
                         <div class="border-t border-gray-100 pt-4 space-y-4">
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Calle</label>
-                                <input type="text" name="calle" id="input_calle" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none">
+                                <label for="input_calle" class="block text-xs font-bold text-gray-700 uppercase mb-1">Calle</label>
+                                <input type="text" name="calle" id="input_calle" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-600 focus:border-pink-600 outline-none">
                             </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Número</label>
-                                    <input type="text" name="numero" id="input_numero" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none">
+                                    <label for="input_numero" class="block text-xs font-bold text-gray-700 uppercase mb-1">Número</label>
+                                    <input type="text" name="numero" id="input_numero" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-600 focus:border-pink-600 outline-none">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Colonia</label>
-                                    <input type="text" name="colonia" id="input_colonia" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none">
+                                    <label for="input_colonia" class="block text-xs font-bold text-gray-700 uppercase mb-1">Colonia</label>
+                                    <input type="text" name="colonia" id="input_colonia" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-600 focus:border-pink-600 outline-none">
                                 </div>
                             </div>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Municipio</label>
-                                    <input type="text" name="municipio" id="input_municipio" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none">
+                                    <label for="input_municipio" class="block text-xs font-bold text-gray-700 uppercase mb-1">Municipio</label>
+                                    <input type="text" name="municipio" id="input_municipio" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-600 focus:border-pink-600 outline-none">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Estado</label>
-                                    <input type="text" name="estado" id="input_estado" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none">
+                                    <label for="input_estado" class="block text-xs font-bold text-gray-700 uppercase mb-1">Estado</label>
+                                    <input type="text" name="estado" id="input_estado" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-600 focus:border-pink-600 outline-none">
                                 </div>
                             </div>
                         </div>
@@ -205,12 +230,17 @@
         </main>
     </div>
 
+    <form id="formBaja" action="<?= base_url('clientes/baja') ?>" method="POST" class="hidden">
+        <input type="hidden" name="id_cliente" id="baja_id">
+    </form>
+
     <script>
         lucide.createIcons();
         const modal = document.getElementById('modalCliente');
         const form  = document.getElementById('formCliente');
 
         let timeout = null;
+        let ultimoFoco = null;
         function buscarDinamico() {
             clearTimeout(timeout);
             timeout = setTimeout(async function () {
@@ -243,6 +273,8 @@
             form.reset();
             document.getElementById('input_id').value = '';
             modal.classList.remove('hidden');
+            ultimoFoco = document.activeElement;
+            document.getElementById('input_nombre').focus();
         }
 
         function editarCliente(cliente) {
@@ -262,9 +294,45 @@
             document.getElementById('input_estado').value     = cliente.estado      || '';
 
             modal.classList.remove('hidden');
+            ultimoFoco = document.activeElement;
+            document.getElementById('input_nombre').focus();
         }
 
-        function cerrarModal() { modal.classList.add('hidden'); }
+        function cerrarModal() {
+            modal.classList.add('hidden');
+            if (ultimoFoco) ultimoFoco.focus();
+        }
+
+        // Teclado (WCAG 2.1.1 / 2.1.2): Esc cierra; Tab no se escapa del modal
+        document.addEventListener('keydown', function (e) {
+            if (modal.classList.contains('hidden')) return;
+            if (e.key === 'Escape') { cerrarModal(); return; }
+            if (e.key !== 'Tab') return;
+            const f = modal.querySelectorAll('button, input, select, textarea, a[href]');
+            const primero = f[0], ultimo = f[f.length - 1];
+            if (e.shiftKey && document.activeElement === primero) { e.preventDefault(); ultimo.focus(); }
+            else if (!e.shiftKey && document.activeElement === ultimo) { e.preventDefault(); primero.focus(); }
+        });
+
+        // Baja manual (RNF-04): anonimiza datos personales y conserva el historial de pedidos
+        function confirmarBaja(id) {
+            Swal.fire({
+                title: '¿Dar de baja al cliente?',
+                text: 'Se borrarán su nombre, teléfono y dirección. Sus pedidos se conservan sin datos personales. No se puede deshacer.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#b45309',
+                cancelButtonColor: '#4b5563',
+                confirmButtonText: 'Dar de baja',
+                cancelButtonText: 'Cancelar',
+                reverseButtons: true
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('baja_id').value = id;
+                    document.getElementById('formBaja').submit();
+                }
+            });
+        }
 
         async function confirmarEliminar(id) {
             try {

@@ -29,6 +29,7 @@ $routes->get('inventario/detalles-stock/(:num)', 'InventarioController::detalles
 $routes->get('clientes', 'ClientesController::index');
 $routes->post('clientes/guardar', 'ClientesController::guardar');
 $routes->post('clientes/actualizar', 'ClientesController::actualizar');
+$routes->post('clientes/baja', 'ClientesController::darDeBaja');
 $routes->get('clientes/verificarEliminar/(:num)', 'ClientesController::verificarEliminar/$1');
 $routes->get('clientes/eliminar/(:num)', 'ClientesController::eliminar/$1');
 

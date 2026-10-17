@@ -319,9 +319,12 @@
         const PAGINA_INICIAL = <?= (int) ($currentPage ?? 1) ?>;
 
         const CLIENTES_DATA = <?= json_encode(array_map(fn($c) => [
-            'id'    => $c['id_cliente'],
-            'label' => $c['nombre'] . ' ' . $c['ap_paterno'],
+            'id'           => $c['id_cliente'],
+            'label'        => trim($c['nombre'] . ' ' . $c['ap_paterno']) . (\App\Models\ClienteModel::esPreferencial((int) $c['compras']) ? ' ⭐ Preferencial' : ''),
+            'preferencial' => \App\Models\ClienteModel::esPreferencial((int) $c['compras']),
         ], $clientes)) ?>;
+
+        const DESCUENTO_PREFERENCIAL = <?= \App\Models\ClienteModel::DESCUENTO_PREFERENCIAL ?>;
 
         const REPARTIDORES_DATA = <?= json_encode(array_map(fn($r) => [
             'id'    => $r['id_repartidor'],

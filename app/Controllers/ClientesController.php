@@ -68,6 +68,15 @@ class ClientesController extends BaseController
         return redirect()->to(base_url('clientes'));
     }
 
+    public function darDeBaja()
+    {
+        $id = (int) $this->request->getPost('id_cliente');
+        if ($id > 0) {
+            (new ClienteModel())->darDeBaja($id);
+        }
+        return redirect()->to(base_url('clientes'));
+    }
+
     public function verificarEliminar($id = null)
     {
         if (!$id) {

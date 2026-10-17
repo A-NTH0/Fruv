@@ -12,6 +12,26 @@ let paginaActualPorEstado = {
     pagado: 1
 };
 
+/**
+ * Precio sugerido según el cliente (RF-12). Si el cliente es preferencial se
+ * aplica el descuento, pero el campo de precio sigue siendo editable.
+ */
+function precioSugerido(precioBase, clienteId) {
+    const c = CLIENTES_DATA.find(x => String(x.id) === String(clienteId));
+    if (c && c.preferencial) {
+        return Math.round(precioBase * (100 - DESCUENTO_PREFERENCIAL)) / 100;
+    }
+    return precioBase;
+}
+
+function avisoClientePreferencial(item) {
+    if (!item || !item.preferencial) return;
+    Swal.fire({
+        toast: true, position: 'top-end', icon: 'info', timer: 4000, showConfirmButton: false,
+        title: `Cliente preferencial: los precios sugeridos llevan ${DESCUENTO_PREFERENCIAL}% de descuento (puedes editarlos).`
+    });
+}
+
 function crearAutocomplete(inputId, hiddenId, listaId, datos, onSelect, mensajeVacio) {
     const input  = document.getElementById(inputId);
     const hidden = document.getElementById(hiddenId);
@@ -595,10 +615,10 @@ function editarPedido(idPedido) {
         document.getElementById('modalEditar').classList.add('flex');
         lucide.createIcons();
         
-        crearAutocomplete('edit-cliente-texto', 'edit-cliente-id', 'edit-cliente-lista', CLIENTES_DATA);
+        crearAutocomplete('edit-cliente-texto', 'edit-cliente-id', 'edit-cliente-lista', CLIENTES_DATA, avisoClientePreferencial);
         crearAutocomplete('edit-repartidor-texto', 'edit-repartidor-id', 'edit-repartidor-lista', REPARTIDORES_DATA);
         crearAutocomplete('edit-sel-prod-texto', 'edit-prod-id', 'edit-prod-lista', PRODUCTOS_DATA, (item) => {
-            document.getElementById('edit-prod-precio').value = item.precio;
+            document.getElementById('edit-prod-precio').value = precioSugerido(item.precio, document.getElementById('edit-cliente-id').value);
             const inputEditProd = document.getElementById('edit-sel-prod-texto');
             inputEditProd.dataset.stock        = item.stock;
             inputEditProd.dataset.nombreLimpio = item.nombre_limpio;
@@ -961,10 +981,10 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarBuscador();
     lucide.createIcons();
 
-    crearAutocomplete('np-cliente-texto',    'np-cliente',    'np-cliente-lista',    CLIENTES_DATA,     null, 'Se debe registrar primero al cliente');
+    crearAutocomplete('np-cliente-texto',    'np-cliente',    'np-cliente-lista',    CLIENTES_DATA,     avisoClientePreferencial, 'Se debe registrar primero al cliente');
     crearAutocomplete('np-repartidor-texto', 'np-repartidor', 'np-repartidor-lista', REPARTIDORES_DATA, null, 'Se debe registrar primero al repartidor');
     crearAutocomplete('np-sel-prod-texto',   'np-prod-id',    'np-prod-lista',       PRODUCTOS_DATA,    (item) => {
-        document.getElementById('np-prod-precio').value = item.precio;
+        document.getElementById('np-prod-precio').value = precioSugerido(item.precio, document.getElementById('np-cliente').value);
         const inputProdTexto = document.getElementById('np-sel-prod-texto');
         inputProdTexto.dataset.stock        = item.stock;
         inputProdTexto.dataset.nombreLimpio = item.nombre_limpio;
