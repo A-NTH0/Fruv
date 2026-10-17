@@ -206,4 +206,76 @@ class ProductoModel extends Model
         $db->table('existencias')->where('id_producto1', (int) $id)->delete();
         return $this->delete($id);
     }
+
+    // ─────────────────────────────────────────────
+    //  RADIOGRAFÍA DE STOCK Y KARDEX
+    // ─────────────────────────────────────────────
+    public function getRadiografia(int $id_producto): array
+    {
+        $db   = \Config\Database::connect();
+        $data = [];
+
+        // 1. Stock físico, bloqueado y libre
+        $data['stock'] = $db->table('existencias')
+                            ->where('id_producto1', $id_producto)
+                            ->get()
+                            ->getRowArray();
+
+        // 2. Total de ventas registradas en pedidos
+        $data['ventas'] = $db->query(
+            "SELECT COUNT(id_pedido1) as total_ventas, COALESCE(SUM(cantidad), 0) as unidades_vendidas 
+             FROM producto_pedido 
+             WHERE id_producto3 = ?",
+            [$id_producto]
+        )->getRowArray();
+
+        // 3. Total de mermas acumuladas
+        $data['mermas'] = $db->query(
+            "SELECT COALESCE(SUM(merma.cantidad), 0) as total_mermas 
+             FROM merma 
+             JOIN entrada ON merma.id_entrada = entrada.id_entrada 
+             WHERE entrada.id_producto2 = ?",
+            [$id_producto]
+        )->getRowArray();
+
+        // 4. Historial Kardex (Entradas, Ventas y Mermas)
+        $sqlKardex = "
+            SELECT 
+                fecha, 
+                'Entrada 🟢' as movimiento, 
+                COALESCE(conversion, cantidad * equivalente) as cant, 
+                CONCAT('Compra Lote #', id_entrada, ' (', cantidad, ' ', unidad_compra, ')') as detalle 
+            FROM entrada 
+            WHERE id_producto2 = ?
+            
+            UNION ALL
+            
+            SELECT 
+                pedido.fecha, 
+                'Venta 🔵' as movimiento, 
+                producto_pedido.cantidad as cant, 
+                CONCAT('Pedido #', pedido.id_pedido) as detalle 
+            FROM producto_pedido 
+            JOIN pedido ON producto_pedido.id_pedido1 = pedido.id_pedido 
+            WHERE producto_pedido.id_producto3 = ?
+            
+            UNION ALL
+            
+            SELECT 
+                merma.fecha, 
+                'Merma 🔴' as movimiento, 
+                merma.cantidad as cant, 
+                merma.notas as detalle 
+            FROM merma 
+            JOIN entrada ON merma.id_entrada = entrada.id_entrada 
+            WHERE entrada.id_producto2 = ?
+            
+            ORDER BY fecha DESC 
+            LIMIT 15
+        ";
+
+        $data['kardex'] = $db->query($sqlKardex, [$id_producto, $id_producto, $id_producto])->getResultArray();
+
+        return $data;
+    }
 }

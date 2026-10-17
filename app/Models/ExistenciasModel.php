@@ -17,22 +17,17 @@ class ExistenciasModel extends Model {
     {
         $db = \Config\Database::connect();
         return $db->table('existencias e')
-            ->select('p.nombre, e.exis_total_general, e.exis_bloqueo, e.exis_venta')
+            ->select('p.id_producto, p.nombre, p.categoria, p.unidad_venta, p.estado, e.exis_total_general, e.exis_bloqueo, e.exis_venta')
             ->join('producto p', 'p.id_producto = e.id_producto1')
+            ->orderBy('p.nombre', 'ASC')
             ->get()
             ->getResultArray();
     }
 
-    /**
-     * Actualiza (o crea) el registro de existencias cuando llega una nueva entrada.
-     * - exis_total_general: suma de todas las conversiones de ese producto en 'entrada'
-     * - exis_venta: total_general - bloqueo
-     */
     public function actualizarDesdeEntrada(int $idProducto): bool
     {
         $db = \Config\Database::connect();
 
-        // Suma de la conversión (unidades de venta) de todas las entradas del producto
         $totalConversion = (float) $db->table('entrada')
             ->selectSum('conversion')
             ->where('id_producto2', $idProducto)
@@ -45,7 +40,6 @@ class ExistenciasModel extends Model {
             ->countAllResults() > 0;
 
         if ($existeRegistro) {
-            // Obtener el bloqueo actual para recalcular exis_venta
             $bloqueo = (float) $db->table('existencias')
                 ->select('exis_bloqueo')
                 ->where('id_producto1', $idProducto)

@@ -57,19 +57,50 @@ class InventarioController extends BaseController
 
     public function registrarMerma()
     {
-        $model = new MermaModel();
+        $model       = new MermaModel();
+        $idsEntrada  = (array) $this->request->getPost('id_entrada');
+        $cantidades  = (array) $this->request->getPost('cantidad');
+        $fecha       = $this->request->getPost('fecha') ?: date('Y-m-d');
+        $notas       = trim($this->request->getPost('notas') ?? '');
+        $registradas = 0;
 
-        $data = [
-            'id_entrada' => $this->request->getPost('id_entrada'),
-            'cantidad'   => (float) $this->request->getPost('cantidad'),
-            'fecha'      => $this->request->getPost('fecha') ?: date('Y-m-d'),
-            'notas'      => $this->request->getPost('notas'),
-        ];
+        foreach ($idsEntrada as $idx => $idEnt) {
+            $idEnt = (int) $idEnt;
+            $cant  = (float) ($cantidades[$idx] ?? 0);
 
-        if ($model->registrarMerma($data)) {
-            return redirect()->to(base_url('inventario'))->with('mensaje', 'Merma registrada con éxito');
+            if ($idEnt > 0 && $cant > 0) {
+                $ok = $model->registrarMerma([
+                    'id_entrada' => $idEnt,
+                    'cantidad'   => $cant,
+                    'fecha'      => $fecha,
+                    'notas'      => $notas !== '' ? $notas : 'Baja por merma',
+                ]);
+                if ($ok) {
+                    $registradas++;
+                }
+            }
+        }
+
+        if ($registradas > 0) {
+            return redirect()->to(base_url('inventario'))->with('mensaje', 'Merma(s) registrada(s) con éxito');
         }
 
         return redirect()->back()->with('error', 'Error al registrar la merma');
+    }
+
+    public function detallesStock($id_producto)
+    {
+        try {
+            $model = new ProductoModel();
+            $data  = $model->getRadiografia((int) $id_producto);
+            $data['success'] = true;
+
+            return $this->response->setJSON($data);
+        } catch (\Throwable $e) {
+            return $this->response->setJSON([
+                'success' => false,
+                'error'   => 'Error al consultar radiografía: ' . $e->getMessage(),
+            ]);
+        }
     }
 }

@@ -22,6 +22,8 @@ $routes->get('productos/eliminar/(:num)', 'ProductosController::eliminar/$1');
 $routes->get('inventario', 'InventarioController::index');
 $routes->post('inventario/registrar-entrada', 'InventarioController::registrarEntrada');
 $routes->post('inventario/registrar-merma', 'InventarioController::registrarMerma');
+$routes->post('inventario/procesar-merma-masiva', 'InventarioController::procesarMermaMasiva');
+$routes->get('inventario/detalles-stock/(:num)', 'InventarioController::detallesStock/$1');
 
 // ---------- Clientes ----------
 $routes->get('clientes', 'ClientesController::index');
