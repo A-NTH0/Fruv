@@ -20,7 +20,7 @@ class InventarioController extends BaseController
             'stats'         => $productoModel->getDashboardStats(),
             'entradas'      => $entradaModel->getEntradasConProductos(10),
             'todasEntradas' => $entradaModel->getAllEntradas(),
-            'productos'     => $productoModel->getAllProductos(),
+            'productos'     => $productoModel->getProductosActivos(),
             'existencias'   => (new ExistenciasModel())->getAllExistencias(),
             'mermas'        => (new MermaModel())->getAllMermas(),
         ];
@@ -46,7 +46,6 @@ class InventarioController extends BaseController
         ];
 
         if ($model->insert($data)) {
-            // Actualizar (o crear) el registro de existencias para este producto
             $idProducto = (int) $this->request->getPost('id_producto2');
             (new ExistenciasModel())->actualizarDesdeEntrada($idProducto);
 

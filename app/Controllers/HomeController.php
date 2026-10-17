@@ -1,7 +1,5 @@
 <?php
-
 namespace App\Controllers;
-
 use App\Models\ProductoModel;
 
 class HomeController extends BaseController
@@ -12,8 +10,9 @@ class HomeController extends BaseController
         $model = new ProductoModel();
 
         $data = [
-            'stats'    => $model->getDashboardStats(),
-            'entradas' => $model->getUltimasEntradas(),
+            'stats'        => $model->getDashboardStats(),
+            'entradas'     => $model->getUltimasEntradas(),
+            'alertasStock' => $model->getAlertasStock(10), 
         ];
 
         return view('dashboard', $data);

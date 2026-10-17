@@ -46,10 +46,17 @@
                                     placeholder="Escribe para buscar..."
                                     class="w-full bg-[#f9fafb] border-none rounded-2xl px-4 py-3.5 text-gray-700 focus:ring-2 focus:ring-[#a1143a]/20">
                                 <datalist id="lista-productos">
-                                    <?php foreach ($productos as $p): ?>
-                                        <option data-id="<?= $p['id_producto'] ?>" value="<?= $p['nombre'] ?>"></option>
-                                    <?php endforeach; ?>
-                                </datalist>
+    <?php 
+    // Creamos un mapa rápido de existencias para mostrar el stock en la lista
+    $mapaExis = [];
+    foreach ($existencias as $ex) { $mapaExis[$ex['nombre']] = $ex['exis_venta']; }
+    
+    foreach ($productos as $p): 
+        $stockActual = $mapaExis[$p['nombre']] ?? 0;
+    ?>
+        <option data-id="<?= $p['id_producto'] ?>" value="<?= esc($p['nombre']) ?> (Stock actual: <?= $stockActual ?>)"></option>
+    <?php endforeach; ?>
+</datalist>
                                 <input type="hidden" name="id_producto2" id="id_producto_hidden">
                             </div>
                         </div>

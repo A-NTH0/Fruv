@@ -60,9 +60,9 @@
                         ?>
                         <div class="producto-card <?= !$esActivo ? 'producto-inactivo' : '' ?>">
                             <div class="img-container">
-                                <img src="<?= base_url('uploads/'.$p['imagen']) ?>" 
-                                     alt="<?= esc($p['nombre']) ?>"
-                                     onerror="this.src='https://placehold.co/400x400?text=Fruta'">
+                                <img src="<?= base_url('uploads/'.$p['imagen']) ?>"
+                                alt="<?= esc($p['nombre']) ?>"
+                                onerror="this.src='https://placehold.co/400x400?text=Fruta'">
                             </div>
 
                             <!-- Encabezado con Badge ACTIVO / INACTIVO -->

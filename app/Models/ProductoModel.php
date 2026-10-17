@@ -33,7 +33,9 @@ class ProductoModel extends Model
     {
         $db = \Config\Database::connect();
 
-        $totalProductos = $this->countAll();
+        // Solo contamos los productos que están activos
+        $totalProductos = $this->where('estado', 'activo')->countAllResults();
+        
         $totalClientes  = $db->tableExists('cliente') ? $db->table('cliente')->countAll() : 0;
         $totalPedidos   = $db->tableExists('pedido')  ? $db->table('pedido')->countAll()  : 0;
 
@@ -72,6 +74,33 @@ class ProductoModel extends Model
         ];
     }
 
+    // NUEVO: Obtener alertas de stock (Productos activos con 10 o menos unidades)
+    public function getAlertasStock($umbral = 10)
+    {
+        $db = \Config\Database::connect();
+        return $db->table('producto p')
+            ->select('p.nombre, COALESCE(e.exis_venta, 0) as stock')
+            ->join('existencias e', 'e.id_producto1 = p.id_producto', 'left')
+            ->where('p.estado', 'activo')
+            ->groupStart()
+                ->where('e.exis_venta <=', $umbral)
+                ->orWhere('e.exis_venta IS NULL')
+            ->groupEnd()
+            ->orderBy('stock', 'ASC')
+            ->get()
+            ->getResultArray();
+    }
+
+    // NUEVO: Verificar si ya existe un producto con el mismo nombre
+    public function existeProducto(string $nombre, ?int $idExcluir = null): bool
+    {
+        $this->where('nombre', trim($nombre));
+        if ($idExcluir !== null) {
+            $this->where('id_producto !=', $idExcluir);
+        }
+        return $this->countAllResults() > 0;
+    }
+
     public function getUltimasEntradas($limite = 5)
     {
         $db = \Config\Database::connect();
@@ -89,9 +118,20 @@ class ProductoModel extends Model
         return [];
     }
 
-    // ─────────────────────────────────────────────
-    //  HELPERS REUTILIZABLES
-    // ─────────────────────────────────────────────
+    public function getProductosParaVenta()
+    {
+        $db = \Config\Database::connect();
+        
+        return $db->table('producto p')
+            ->select('p.id_producto, p.nombre, p.precio, p.unidad_venta, COALESCE(e.exis_venta, 0) as stock_disponible')
+            ->join('existencias e', 'e.id_producto1 = p.id_producto', 'left')
+            ->groupStart()
+                ->where('p.estado', 'activo')
+                ->orWhere('e.exis_venta >', 0) 
+            ->groupEnd()
+            ->get()
+            ->getResultArray();
+    }
 
     public function getAllProductos()
     {
@@ -113,7 +153,6 @@ class ProductoModel extends Model
         $db = \Config\Database::connect();
         $idNuevo = $this->insert($data, true);
 
-        // Crear registro base en existencias para que el trigger 'actualizar_por_nueva_entrada' funcione
         if ($idNuevo && $db->tableExists('existencias')) {
             $db->table('existencias')->insert([
                 'exis_total_general' => 0,
@@ -137,12 +176,6 @@ class ProductoModel extends Model
         return $this->update($id, ['estado' => $nuevoEstado]);
     }
 
-    /**
-     * Verifica si el producto no se puede borrar físicamente por tener:
-     * 1) Stock mayor a 0 en existencias
-     * 2) Entradas registradas en 'entrada' (FK id_producto2)
-     * 3) Pedidos registrados en 'producto_pedido' (FK id_producto3)
-     */
     public function tieneExistencias(int $idProducto): bool
     {
         $db = \Config\Database::connect();
@@ -170,22 +203,7 @@ class ProductoModel extends Model
     public function eliminarProducto($id)
     {
         $db = \Config\Database::connect();
-        // Si solo tenía su fila en 0 en existencias (sin entradas ni pedidos), limpiamos esa fila primero por la FK
         $db->table('existencias')->where('id_producto1', (int) $id)->delete();
         return $this->delete($id);
-    }
-
-    public function obtenerPedidosConEstado()
-    {
-        $db = \Config\Database::connect();
-        if ($db->tableExists('pedido')) {
-            return $db->table('pedido')->get()->getResultArray();
-        }
-        return [];
-    }
-
-    public function obtenerProductosDePedido($id_pedido)
-    {
-        return [];
     }
 }

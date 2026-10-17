@@ -448,27 +448,18 @@ class PedidoModel extends Model
         return $pedido;
     }
 
-    // ─────────────────────────────────────────────
-    //  CATÁLOGOS PARA EL INDEX
-    // ─────────────────────────────────────────────
-
-    /**
-     * Devuelve los catálogos (clientes, productos, repartidores) que se necesitan
-     * para cargar la pantalla principal de pedidos.
-     */
+    
     public function getCatalogosIndex(): array
     {
         $db = \Config\Database::connect();
+        $productoModel = new ProductoModel(); // Usamos el modelo para traer la lógica nueva
+
         return [
             'clientes'     => $db->table('cliente')->get()->getResultArray(),
-            'productos'    => $db->table('producto')->select('id_producto, nombre, precio, unidad_venta')->get()->getResultArray(),
+            'productos'    => $productoModel->getProductosParaVenta(), // <--- Cambio clave aquí
             'repartidores' => $db->table('repartidor')->get()->getResultArray(),
         ];
     }
-
-    // ─────────────────────────────────────────────
-    //  ABONOS
-    // ─────────────────────────────────────────────
 
     public function registrarAbono($idPedido, $monto, $fechaAbono)
     {
@@ -504,9 +495,7 @@ class PedidoModel extends Model
             ->getResultArray();
     }
 
-    // ─────────────────────────────────────────────
-    //  STATS / DASHBOARD
-    // ─────────────────────────────────────────────
+
 
     public function getStatsCards()
     {

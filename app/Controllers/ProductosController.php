@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Controllers;
+
 use App\Models\ProductoModel;
 
 class ProductosController extends BaseController
@@ -27,19 +29,25 @@ class ProductosController extends BaseController
 
     public function guardar()
     {
+        $model  = new ProductoModel();
+        $nombre = trim($this->request->getPost('nombre'));
+
+        if ($model->existeProducto($nombre)) {
+            return redirect()->back()->withInput()->with('error', 'Ya existe un producto con el nombre: ' . $nombre);
+        }
+
         $archivo      = $this->request->getFile('imagen_file');
         $nombreImagen = 'default.jpg';
 
         if ($archivo && $archivo->isValid() && !$archivo->hasMoved()) {
             $nombreImagen = $archivo->getRandomName();
-            $archivo->move(ROOTPATH . 'public/uploads', $nombreImagen);
+            $archivo->move(FCPATH . 'uploads', $nombreImagen);
         }
 
         $precio = (float) ($this->request->getPost('precio') ?: 0);
 
-        $model = new ProductoModel();
         $model->guardarProducto([
-            'nombre'       => $this->request->getPost('nombre'),
+            'nombre'       => $nombre,
             'descripcion'  => $this->request->getPost('descripcion'),
             'categoria'    => $this->request->getPost('categoria'),
             'unidad_venta' => $this->request->getPost('unidad_venta'),
@@ -54,22 +62,34 @@ class ProductosController extends BaseController
 
     public function actualizar()
     {
-        $id    = (int) $this->request->getPost('id_producto');
-        $model = new ProductoModel();
+        $id     = (int) $this->request->getPost('id_producto');
+        $model  = new ProductoModel();
+        $nombre = trim($this->request->getPost('nombre'));
+
+        if ($model->existeProducto($nombre, $id)) {
+            return redirect()->back()->withInput()->with('error', 'Ya existe otro producto con el nombre: ' . $nombre);
+        }
 
         $producto     = $model->obtenerProductoPorId($id);
         $nombreImagen = $producto['imagen'] ?? 'default.jpg';
 
         $archivo = $this->request->getFile('imagen_file');
         if ($archivo && $archivo->isValid() && !$archivo->hasMoved()) {
+            
+            // Limpieza: Borrar imagen vieja si no es la por defecto
+            if ($nombreImagen !== 'default.jpg' && file_exists(FCPATH . 'uploads/' . $nombreImagen)) {
+                unlink(FCPATH . 'uploads/' . $nombreImagen);
+            }
+            
             $nombreImagen = $archivo->getRandomName();
-            $archivo->move(ROOTPATH . 'public/uploads', $nombreImagen);
+            // Ruta corregida para php spark serve
+            $archivo->move(FCPATH . 'uploads', $nombreImagen);
         }
 
         $precio = (float) ($this->request->getPost('precio') ?: 0);
 
         $model->actualizarProducto($id, [
-            'nombre'       => $this->request->getPost('nombre'),
+            'nombre'       => $nombre,
             'descripcion'  => $this->request->getPost('descripcion'),
             'categoria'    => $this->request->getPost('categoria'),
             'unidad_venta' => $this->request->getPost('unidad_venta'),
@@ -129,9 +149,20 @@ class ProductosController extends BaseController
     public function eliminar($id)
     {
         $model = new ProductoModel();
+        
         if (!$model->tieneExistencias((int) $id)) {
+            $producto = $model->obtenerProductoPorId((int) $id);
+            
             $model->eliminarProducto((int) $id);
+            
+            if ($producto && isset($producto['imagen']) && $producto['imagen'] !== 'default.jpg') {
+                $rutaImagen = FCPATH . 'uploads/' . $producto['imagen'];
+                if (file_exists($rutaImagen)) {
+                    unlink($rutaImagen);
+                }
+            }
         }
+        
         return redirect()->to(base_url('productos'));
     }
 }
