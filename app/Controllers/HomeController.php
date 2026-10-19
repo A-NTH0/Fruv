@@ -6,6 +6,7 @@ use App\Models\ProductoModel;
 
 class HomeController extends BaseController
 {
+  
     public function index()
     {
         helper('url');
@@ -18,4 +19,5 @@ class HomeController extends BaseController
 
         return view('dashboard', $data);
     }
+    
 }

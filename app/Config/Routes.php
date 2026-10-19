@@ -5,7 +5,8 @@ use CodeIgniter\Router\RouteCollection;
 /**
  * @var RouteCollection $routes
  */
-
+//----------- Login --------------
+$routes->
 // ---------- Dashboard ----------
 $routes->get('/', 'HomeController::index');
 $routes->get('dashboard', 'HomeController::index');
