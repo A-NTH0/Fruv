@@ -8,6 +8,9 @@ use CodeIgniter\HTTP\ResponseInterface;
 
 class AuthFilter implements FilterInterface
 {
+    /** Primer segmento de las rutas exclusivas del cliente. */
+    private const RUTAS_CLIENTE = ['carrito', 'mis-pedidos', 'perfil'];
+
     public function before(RequestInterface $request, $arguments = null)
     {
         $session = session();
@@ -15,16 +18,20 @@ class AuthFilter implements FilterInterface
             return redirect()->to(base_url('login'));
         }
 
+        $segments     = service('uri')->getSegments();
+        $primero      = $segments[0] ?? '';
+        $esRutaCliente = in_array($primero, self::RUTAS_CLIENTE, true);
+
+        // El administrador no usa las rutas del cliente.
         if ($session->get('auth_role') !== 'cliente') {
-            return null;
+            return $esRutaCliente ? redirect()->to(base_url('dashboard')) : null;
         }
 
-        $segments  = service('uri')->getSegments();
         $isCatalog = strtoupper($request->getMethod()) === 'GET'
             && $segments === ['productos'];
         $isLogout = $segments === ['logout'];
 
-        if (! $isCatalog && ! $isLogout) {
+        if (! $isCatalog && ! $isLogout && ! $esRutaCliente) {
             return redirect()->to(base_url('productos'));
         }
 
