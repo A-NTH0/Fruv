@@ -6,10 +6,18 @@
 <aside class="sidebar">
     <div class="p-6 mb-2">
         <h1 class="text-xl font-bold text-white">🍓Fruver App</h1>
-        <p class="text-gray-400 text-xs mt-1">Sistema de gestión</p>
+        <p class="text-gray-400 text-xs mt-1">
+            <?= session()->get('auth_role') === 'cliente' ? 'Catálogo de productos' : 'Sistema de gestión' ?>
+        </p>
     </div>
 
     <nav class="flex-1 px-3 space-y-1">
+        <?php if (session()->get('auth_role') === 'cliente'): ?>
+            <a href="<?= base_url('productos') ?>" class="nav-item active">
+                <i data-lucide="layout-grid" class="w-4 h-4"></i>
+                <span>Catálogo</span>
+            </a>
+        <?php else: ?>
         <a href="<?= base_url('dashboard') ?>" 
            class="nav-item <?= ($pagina_actual == 'dashboard' || $pagina_actual == '') ? 'active' : '' ?>">
             <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
@@ -45,6 +53,11 @@
            class="nav-item <?= ($pagina_actual == 'repartidores') ? 'active' : '' ?>">
             <i data-lucide="user-square" class="w-4 h-4"></i>
             <span>Repartidores</span>
+        </a>
+        <?php endif; ?>
+        <a href="<?= base_url('logout') ?>" class="nav-item mt-auto">
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+            <span>Cerrar sesión</span>
         </a>
     </nav>
 </aside>

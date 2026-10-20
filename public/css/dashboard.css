@@ -4,8 +4,8 @@
     --active-red: #800f2f; /* El guinda de la imagen */
 }
 
-body { 
-    font-family: 'Inter', sans-serif; 
+body {
+    font-family: 'Inter', sans-serif;
     background-color: #F8FAFC; /* Fondo claro para que resalte el dashboard */
     margin: 0;
 }
@@ -25,10 +25,10 @@ body {
     margin-bottom: 4px;
 }
 
-.nav-item i { 
+.nav-item i {
     width: 18px;
     height: 18px;
-    color: #9CA3AF; 
+    color: #9CA3AF;
 }
 
 .nav-item:hover {
@@ -43,8 +43,8 @@ body {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.nav-item.active i { 
-    color: white; 
+.nav-item.active i {
+    color: white;
 }
 
 .nav-item.active i { color: white; }

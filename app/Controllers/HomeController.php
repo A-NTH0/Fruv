@@ -18,9 +18,4 @@ class HomeController extends BaseController
 
         return view('dashboard', $data);
     }
-<<<<<<< HEAD
-    
 }
-=======
-}
->>>>>>> a25ae455709c093f4c2148c5e025674248c5ac8f

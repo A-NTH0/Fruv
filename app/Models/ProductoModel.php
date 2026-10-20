@@ -33,8 +33,10 @@ class ProductoModel extends Model
     {
         $db = \Config\Database::connect();
 
-        // Solo contamos los productos que están activos
-        $totalProductos = $this->where('estado', 'activo')->countAllResults();
+        $tieneEstadoProducto = $db->fieldExists('estado', 'producto');
+        $totalProductos = $tieneEstadoProducto
+            ? $this->where('estado', 'activo')->countAllResults()
+            : $this->countAllResults();
         
         $totalClientes  = $db->tableExists('cliente') ? $db->table('cliente')->countAll() : 0;
         $totalPedidos   = $db->tableExists('pedido')  ? $db->table('pedido')->countAll()  : 0;
@@ -78,15 +80,19 @@ class ProductoModel extends Model
     public function getAlertasStock($umbral = 10)
     {
         $db = \Config\Database::connect();
-        return $db->table('producto p')
+        $consulta = $db->table('producto p')
             ->select('p.nombre, COALESCE(e.exis_venta, 0) as stock')
             ->join('existencias e', 'e.id_producto1 = p.id_producto', 'left')
-            ->where('p.estado', 'activo')
             ->groupStart()
                 ->where('e.exis_venta <=', $umbral)
                 ->orWhere('e.exis_venta IS NULL')
-            ->groupEnd()
-            ->orderBy('stock', 'ASC')
+            ->groupEnd();
+
+        if ($db->fieldExists('estado', 'producto')) {
+            $consulta->where('p.estado', 'activo');
+        }
+
+        return $consulta->orderBy('stock', 'ASC')
             ->get()
             ->getResultArray();
     }

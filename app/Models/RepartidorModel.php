@@ -6,7 +6,7 @@ class RepartidorModel extends Model
 {
     protected $table         = 'repartidor';
     protected $primaryKey    = 'id_repartidor';
-    protected $allowedFields = ['nombre', 'ap_paterno', 'ap_materno', 'telefono', 'direccion', 'notas'];
+    protected $allowedFields = ['nombre', 'ap_paterno', 'ap_materno', 'telefono', 'direccion', 'notas', 'email', 'hash'];
 
 
     public function tienePedidos(int $idRepartidor): bool
@@ -19,11 +19,14 @@ class RepartidorModel extends Model
 
     public function getRepartidores(string $busqueda = ''): static
     {
+        $this->select('id_repartidor, nombre, ap_paterno, ap_materno, telefono, direccion, notas, email');
+
         if ($busqueda !== '') {
             $this->groupStart()
                  ->like('nombre', $busqueda)
                  ->orLike('ap_paterno', $busqueda)
                  ->orLike('telefono', $busqueda)
+                 ->orLike('email', $busqueda)
                  ->groupEnd();
         }
 

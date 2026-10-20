@@ -12,6 +12,16 @@ class ProductosController extends BaseController
         $busqueda     = trim($this->request->getVar('buscar') ?? '');
         $estadoFiltro = trim($this->request->getVar('estado') ?? '');
 
+        if (session()->get('auth_role') === 'cliente') {
+            $productos = $model->getProductos($busqueda, 'activo')->paginate(9, 'group1');
+
+            return view('catalogo_cliente', [
+                'productos' => $productos,
+                'pager'     => $model->pager,
+                'busqueda'  => $busqueda,
+            ]);
+        }
+
         $productos = $model->getProductos($busqueda, $estadoFiltro)->paginate(9, 'group1');
 
         $data = [

@@ -6,9 +6,11 @@ use CodeIgniter\Router\RouteCollection;
  * @var RouteCollection $routes
  */
 //----------- Login --------------
-$routes->
-// ---------- Dashboard ----------
-$routes->get('/', 'HomeController::index');
+$routes->get('login', 'LogingController::login');
+$routes->post('login', 'LogingController::autenticar');
+$routes->get('logout', 'LogingController::cerrarSesion');
+// ---------- Login / Dashboard ----------
+$routes->get('/', 'LogingController::login');
 $routes->get('dashboard', 'HomeController::index');
 
 // ---------- Productos ----------

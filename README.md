@@ -25,8 +25,12 @@ to your `app` folder. The affected files can be copied or merged from
 
 ## Setup
 
-Copy `env` to `.env` and tailor for your app, specifically the baseURL
-and any database settings.
+Copy `.env.example` to `.env` for local development. The development
+environment displays detailed errors to help diagnose problems. Do not use
+`development` in production; set `CI_ENVIRONMENT = production` on the server
+to avoid exposing internal application details.
+
+The application login is served at `/` (or `/login`).
 
 ## Important Change with index.php
 

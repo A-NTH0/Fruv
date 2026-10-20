@@ -78,7 +78,7 @@
                                 <i data-lucide="alert-triangle" class="w-5 h-5 text-rose-500"></i>
                             </div>
                             <div>
-                                <p class="font-bold text-gray-800 text-sm">Agostándose: <?= esc($alerta['nombre']) ?></p>
+                                <p class="font-bold text-gray-800 text-sm">Agotándose: <?= esc($alerta['nombre']) ?></p>
                                 <p class="text-rose-600 text-xs font-semibold mt-0.5">
                                     Quedan <?= (int)$alerta['stock'] ?> unidades disponibles.
                                 </p>

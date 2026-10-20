@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Glass Login</title>
+    <title>Iniciar sesión</title>
     <link rel="stylesheet" href="<?= base_url('css/login.css?v=' . filemtime(FCPATH . 'css/login.css')) ?>">
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -25,36 +25,32 @@
                 <p class="subtitle">Inicia sesión para continuar</p>
             </div>
 
-            <form id="loginForm">
+            <?php if (isset($error)): ?>
+                <p class="form-message" role="alert"><?= esc($error) ?></p>
+            <?php endif; ?>
+            <?php if (isset($validation)): ?>
+                <div class="form-message" role="alert">
+                    <?php foreach ($validation->getErrors() as $message): ?>
+                        <p><?= esc($message) ?></p>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+
+            <form id="loginForm" action="<?= base_url('login') ?>" method="post">
 
                 <div class="input-group">
                     <i class="fa-regular fa-envelope"></i>
 
-                    <input type="email" placeholder="Email address" required>
+                    <input type="email" name="email" placeholder="Correo electrónico" value="<?= esc($email ?? '') ?>" autocomplete="email" required>
                 </div>
 
                 <div class="input-group">
                     <i class="fa-solid fa-lock"></i>
 
-                    <input type="password" placeholder="Password" required>
+                    <input type="password" name="contrasena" placeholder="Contraseña" autocomplete="current-password" required>
                 </div>
 
-                <button type="submit" class="login-btn">Iniciar Sesion</button>
-
-                <div class="register-row">
-                    <p>Aún no estás registrado?</p>
-                    <button type="button" class="register-btn">Registrarse</button>
-                </div>
-
-                <div class="divider">
-                    <span>or continue with</span>
-                </div>
-
-                <div class="social-icons">
-                    <button type="button" class="social google-btn" aria-label="Iniciar sesión con Google">
-                        <i class="fa-brands fa-google"></i>
-                    </button>
-                </div>
+                <button type="submit" class="login-btn" data-loading-label="Iniciando sesión...">Iniciar sesión</button>
             </form>
         </div>
     </div>

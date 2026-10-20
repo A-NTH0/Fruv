@@ -6,7 +6,7 @@ class ClienteModel extends Model
 {
     protected $table            = 'cliente';
     protected $primaryKey       = 'id_cliente';
-    protected $allowedFields    = ['nombre', 'ap_paterno', 'ap_materno', 'telefono', 'baja', 'fecha_baja'];
+    protected $allowedFields    = ['nombre', 'ap_paterno', 'ap_materno', 'telefono', 'email', 'hash', 'baja', 'fecha_baja'];
 
     // ── Reglas de cliente preferencial (RF-11 / RF-12) ──
     // Cambiar aquí cuando el cliente defina el número de compras y el descuento.
@@ -57,6 +57,8 @@ class ClienteModel extends Model
             'ap_paterno' => '',
             'ap_materno' => '',
             'telefono'   => '',
+            'email'      => '',
+            'hash'       => '',
             'baja'       => 1,
             'fecha_baja' => date('Y-m-d H:i:s'),
         ]);
@@ -68,7 +70,7 @@ class ClienteModel extends Model
 
     public function getClientesConDireccion(string $busqueda = ''): static
     {
-        $this->select('cliente.id_cliente, cliente.nombre, cliente.ap_paterno, cliente.ap_materno, cliente.telefono,
+        $this->select('cliente.id_cliente, cliente.nombre, cliente.ap_paterno, cliente.ap_materno, cliente.telefono, cliente.email,
                         direccion.calle, direccion.numero, direccion.colonia, direccion.municipio, direccion.estado,
                         ' . self::sqlCompras(), false)
              ->join('direccion', 'direccion.id_cliente = cliente.id_cliente', 'left')
@@ -79,8 +81,11 @@ class ClienteModel extends Model
                  ->like('cliente.nombre', $busqueda)
                  ->orLike('cliente.ap_paterno', $busqueda)
                  ->orLike('cliente.telefono', $busqueda)
+                 ->orLike('cliente.email', $busqueda)
                  ->groupEnd();
         }
+
+        $this->orderBy('cliente.id_cliente', 'DESC');
 
         return $this;
     }

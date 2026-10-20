@@ -42,6 +42,18 @@
                     </div>
                 </div>
 
+                <?php $credentialNotice = session()->getFlashdata('credential'); ?>
+                <?php $formError = session()->getFlashdata('error'); ?>
+                <?php if ($formError): ?>
+                    <div role="alert" class="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><?= esc($formError) ?></div>
+                <?php endif; ?>
+                <?php if ($credentialNotice): ?>
+                    <section role="status" class="mb-6 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+                        <h2 class="font-bold"><?= esc($credentialNotice['tipo']) ?> creado y correo enviado a <?= esc($credentialNotice['email']) ?>.</h2>
+                        <p class="mt-1">Contraseña generada (se muestra solo esta vez): <strong class="font-mono select-all"><?= esc($credentialNotice['password']) ?></strong></p>
+                    </section>
+                <?php endif; ?>
+
                 <div id="contenedor-dinamico">
 <?php endif; ?>
 
@@ -67,6 +79,10 @@
                                     <div class="flex items-center gap-3">
                                         <i class="fas fa-phone text-gray-300 w-5"></i>
                                         <span class="text-sm font-medium"><?= $r['telefono'] ?></span>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <i class="fas fa-envelope text-gray-300 w-5"></i>
+                                        <span class="text-sm font-medium break-all"><?= esc($r['email']) ?></span>
                                     </div>
                                     <div class="flex items-start gap-3">
                                         <i class="fas fa-map-marker-alt text-gray-300 w-5 mt-1"></i>
@@ -187,6 +203,13 @@
                 </div>
 
                 <div>
+                    <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Correo electrónico</label>
+                    <input type="email" name="email" maxlength="50" autocomplete="email" required
+                           class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-rose-500 outline-none text-sm font-medium">
+                    <p class="mt-1 text-xs text-gray-500">Se generará una contraseña segura al guardar y se enviará a este correo.</p>
+                </div>
+
+                <div>
                     <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Dirección</label>
                     <input type="text" name="direccion"
                            class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-rose-500 outline-none text-sm font-medium">
@@ -247,6 +270,12 @@
                 <div>
                     <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Teléfono</label>
                     <input type="text" name="telefono" id="edit_telefono" required
+                           class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-rose-500 outline-none text-sm font-medium">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Correo electrónico</label>
+                    <input type="email" name="email" id="edit_email" maxlength="50" autocomplete="email" required
                            class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-rose-500 outline-none text-sm font-medium">
                 </div>
 
@@ -314,6 +343,7 @@
             document.getElementById('edit_paterno').value   = r.ap_paterno;
             document.getElementById('edit_materno').value   = r.ap_materno;
             document.getElementById('edit_telefono').value  = r.telefono;
+            document.getElementById('edit_email').value     = r.email;
             document.getElementById('edit_direccion').value = r.direccion;
             document.getElementById('edit_notas').value     = r.notas || '';
             modalEditar.classList.remove('hidden');

@@ -16,6 +16,8 @@
         <?= view('plantilla/menu') ?>
 
         <main id="contenido" class="main-content flex-1 p-8">
+            <?php $credentialNotice = session()->getFlashdata('credential'); ?>
+            <?php $formError = session()->getFlashdata('error'); ?>
             <div class="flex justify-between items-center mb-6">
                 <div>
                     <h1 class="text-2xl font-bold text-gray-800">Catálogo de Clientes</h1>
@@ -40,6 +42,16 @@
                 </div>
             </div>
 
+            <?php if ($formError): ?>
+                <div role="alert" class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"><?= esc($formError) ?></div>
+            <?php endif; ?>
+            <?php if ($credentialNotice): ?>
+                <section role="status" class="mb-6 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+                    <h2 class="font-bold"><?= esc($credentialNotice['tipo']) ?> creado y correo enviado a <?= esc($credentialNotice['email']) ?>.</h2>
+                    <p class="mt-1">Contraseña generada (se muestra solo esta vez): <strong class="font-mono select-all"><?= esc($credentialNotice['password']) ?></strong></p>
+                </section>
+            <?php endif; ?>
+
             <div id="contenedor-clientes" aria-live="polite" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <?php if (!empty($clientes)): ?>
                     <?php foreach ($clientes as $cliente): ?>
@@ -50,7 +62,8 @@
                         $datosEditar   = [
                             'id_cliente' => $cliente['id_cliente'], 'nombre' => $cliente['nombre'],
                             'ap_paterno' => $cliente['ap_paterno'], 'ap_materno' => $cliente['ap_materno'],
-                            'telefono'   => $cliente['telefono'],   'calle'      => $cliente['calle'],
+                            'telefono'   => $cliente['telefono'],   'email'      => $cliente['email'],
+                            'calle'      => $cliente['calle'],
                             'numero'     => $cliente['numero'],     'colonia'    => $cliente['colonia'],
                             'municipio'  => $cliente['municipio'],  'estado'     => $cliente['estado'],
                         ];
@@ -77,6 +90,10 @@
                                     <p class="flex items-center gap-2">
                                         <i data-lucide="phone" class="w-4 h-4 text-gray-500" aria-hidden="true"></i> 
                                         <span class="sr-only">Teléfono:</span> <?= esc($cliente['telefono']) ?>
+                                    </p>
+                                    <p class="flex items-center gap-2 break-all">
+                                        <i data-lucide="mail" class="w-4 h-4 text-gray-500" aria-hidden="true"></i>
+                                        <?= esc($cliente['email']) ?>
                                     </p>
                                     <p class="flex items-start gap-2">
                                         <i data-lucide="map-pin" class="w-4 h-4 text-gray-500 mt-0.5" aria-hidden="true"></i> 
@@ -161,18 +178,18 @@
             <?php endif; ?>
 
             <!-- ── Modal Nuevo / Editar Cliente ── -->
-            <div id="modalCliente" role="dialog" aria-modal="true" aria-labelledby="modalTitle" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-                    <div class="p-6 flex justify-between items-center border-b border-gray-100">
+            <div id="modalCliente" role="dialog" aria-modal="true" aria-labelledby="modalTitle" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center overflow-y-auto p-4">
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+                    <div class="p-6 flex justify-between items-center border-b border-gray-100 shrink-0">
                         <h2 id="modalTitle" class="text-2xl font-extrabold text-gray-800">Cliente</h2>
                         <button type="button" onclick="cerrarModal()" aria-label="Cerrar ventana" class="text-gray-600 hover:text-gray-900">
                             <i data-lucide="x" class="w-6 h-6" aria-hidden="true"></i>
                         </button>
                     </div>
 
-                    <form id="formCliente" action="" method="POST" class="p-6 space-y-4">
-                        <input type="hidden" name="id_cliente" id="input_id">
-                        <div class="space-y-4">
+                    <form id="formCliente" action="" method="POST" class="flex min-h-0 flex-1 flex-col">
+                        <div class="min-h-0 flex-1 overflow-y-auto p-6 space-y-4">
+                            <input type="hidden" name="id_cliente" id="input_id">
                             <div>
                                 <label for="input_nombre" class="block text-xs font-bold text-gray-700 uppercase mb-1">Nombre *</label>
                                 <input type="text" name="nombre" id="input_nombre" required class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-600 focus:border-pink-600 outline-none">
@@ -191,8 +208,11 @@
                                 <label for="input_telefono" class="block text-xs font-bold text-gray-700 uppercase mb-1">Teléfono *</label>
                                 <input type="text" name="telefono" id="input_telefono" required class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-600 focus:border-pink-600 outline-none">
                             </div>
-                        </div>
-
+                            <div>
+                                <label for="input_email" class="block text-xs font-bold text-gray-700 uppercase mb-1">Correo electrónico *</label>
+                                <input type="email" name="email" id="input_email" maxlength="50" autocomplete="email" required class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-600 focus:border-pink-600 outline-none">
+                                <p class="mt-1 text-xs text-gray-500">Al crear el cliente se generará una contraseña segura y se enviará a este correo.</p>
+                            </div>
                         <div class="border-t border-gray-100 pt-4 space-y-4">
                             <div>
                                 <label for="input_calle" class="block text-xs font-bold text-gray-700 uppercase mb-1">Calle</label>
@@ -219,8 +239,9 @@
                                 </div>
                             </div>
                         </div>
+                        </div>
 
-                        <div class="flex gap-3 pt-4">
+                        <div class="flex gap-3 border-t border-gray-100 bg-white p-6 pt-4 shrink-0">
                             <button type="button" onclick="cerrarModal()" class="flex-1 px-4 py-2 border border-gray-200 text-gray-700 font-bold rounded-lg hover:bg-gray-50">Cancelar</button>
                             <button type="submit" id="btnSubmit" class="flex-1 px-4 py-2 bg-pink-600 text-white font-bold rounded-lg shadow-lg hover:bg-pink-700 transition-colors">Guardar</button>
                         </div>
@@ -287,6 +308,7 @@
             document.getElementById('input_ap_paterno').value = cliente.ap_paterno  || '';
             document.getElementById('input_ap_materno').value = cliente.ap_materno  || '';
             document.getElementById('input_telefono').value   = cliente.telefono;
+            document.getElementById('input_email').value      = cliente.email;
             document.getElementById('input_calle').value      = cliente.calle       || '';
             document.getElementById('input_numero').value     = cliente.numero      || '';
             document.getElementById('input_colonia').value    = cliente.colonia     || '';
