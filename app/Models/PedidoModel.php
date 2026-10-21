@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Libraries\StockPedido;
 use CodeIgniter\Model;
 
 class PedidoModel extends Model
@@ -11,6 +12,9 @@ class PedidoModel extends Model
     protected $allowedFields = ['fecha', 'id_cliente1', 'id_repartidor', 'modalidad_pago', 'deuda_restante', 'fecha_entrega', 'fecha_entrega_programada', 'horario_entrega', 'imagen_url', 'total', 'pago_inicial'];
     protected $useTimestamps  = false;
     protected $useSoftDeletes = false;
+
+    /** Motivo del último fallo (p. ej. sin existencias) para que el controlador lo muestre. */
+    public string $ultimoError = '';
 
     // ─────────────────────────────────────────────
     //  ESTADOS
@@ -59,6 +63,7 @@ class PedidoModel extends Model
     public function cambiarEstado($idPedido, $nuevoEstado, $repartidorId = null)
     {
         $db = \Config\Database::connect();
+        $this->ultimoError = '';
         $db->transStart();
 
         // Bloquea el pedido: evita cancelar y enviar al mismo tiempo desde cliente y administrador.
@@ -67,6 +72,20 @@ class PedidoModel extends Model
         if ($nuevoEstado === 'cancelado' && ! $this->puedeCancelar($idPedido)) {
             $db->transComplete();
             return false;
+        }
+
+        // ── Existencias ──────────────────────────────────────────────
+        // Aceptar (confirmado) descuenta el stock; cancelar o volver a Pendiente lo repone.
+        // StockPedido es idempotente (bandera pedido.stock_descontado): no duplica descuentos.
+        if ($nuevoEstado === 'confirmado') {
+            $stock = StockPedido::descontar((int) $idPedido);
+            if (! $stock['ok']) {
+                $this->ultimoError = $stock['message'];
+                $db->transRollback();
+                return false;
+            }
+        } elseif (in_array($nuevoEstado, ['cancelado', 'pedido'], true)) {
+            StockPedido::reponer((int) $idPedido);
         }
 
         if ($repartidorId) {
@@ -316,6 +335,7 @@ class PedidoModel extends Model
     /**
      * Inserta el pedido, su estado inicial y sus productos en una transacción.
      * Devuelve ['success' => bool, 'id_pedido' => int].
+     * No descuenta existencias: el descuento ocurre al aceptar el pedido.
      */
     public function crearPedidoCompleto(array $dataPedido, array $productos, string $estadoInicial): array
     {
@@ -357,11 +377,22 @@ class PedidoModel extends Model
 
     /**
      * Actualiza los datos del pedido y reemplaza su lista de productos.
-     * Devuelve true/false.
+     * Si el pedido ya estaba aceptado (stock descontado), repone lo descontado con las
+     * líneas anteriores y vuelve a descontar con las nuevas, validando existencias; si no
+     * alcanza, revierte todo y devuelve false con el motivo en $ultimoError.
      */
     public function actualizarPedidoCompleto(int $idPedido, array $updateData, array $productos): bool
     {
         $db = \Config\Database::connect();
+        $this->ultimoError = '';
+        $db->transStart();
+
+        $db->query('SELECT id_pedido FROM pedido WHERE id_pedido = ? FOR UPDATE', [$idPedido]);
+
+        $estabaDescontado = StockPedido::estaDescontado($idPedido);
+        if ($estabaDescontado) {
+            StockPedido::reponer($idPedido); // usa las líneas anteriores (aún no borradas)
+        }
 
         $db->table('pedido')->where('id_pedido', $idPedido)->update($updateData);
         $db->table('producto_pedido')->where('id_pedido1', $idPedido)->delete();
@@ -381,7 +412,18 @@ class PedidoModel extends Model
             ]);
         }
 
-        return true;
+        if ($estabaDescontado) {
+            $stock = StockPedido::descontar($idPedido);
+            if (! $stock['ok']) {
+                $this->ultimoError = $stock['message'];
+                $db->transRollback();
+                return false;
+            }
+        }
+
+        $db->transComplete();
+
+        return $db->transStatus();
     }
 
     // ─────────────────────────────────────────────
@@ -390,14 +432,25 @@ class PedidoModel extends Model
 
     /**
      * Elimina el pedido y todos sus registros relacionados.
+     * Si tenía stock descontado y la mercancía aún no salió (no entregado), lo repone.
      */
     public function eliminarPedidoCompleto(int $id): void
     {
         $db = \Config\Database::connect();
+        $db->transStart();
+
+        $db->query('SELECT id_pedido FROM pedido WHERE id_pedido = ? FOR UPDATE', [$id]);
+
+        if (! in_array($this->getEstadoActual($id), ['entregado', 'credito', 'pagado'], true)) {
+            StockPedido::reponer($id); // no hace nada si no estaba descontado
+        }
+
         $db->table('producto_pedido')->where('id_pedido1', $id)->delete();
         $db->table('status')->where('id_pedido2', $id)->delete();
         $db->table('abonos')->where('id_pedido', $id)->delete();
         $db->table('pedido')->where('id_pedido', $id)->delete();
+
+        $db->transComplete();
     }
 
     // ─────────────────────────────────────────────

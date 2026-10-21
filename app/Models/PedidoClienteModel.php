@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Libraries\StockPedido;
 use Config\Database;
 
 /**
@@ -174,6 +175,7 @@ class PedidoClienteModel
     /**
      * Crea el pedido del cliente con estado inicial "pedido" (Pendiente).
      * Valida stock con bloqueo de filas para evitar sobreventa.
+     * NO descuenta existencias: el descuento ocurre cuando el administrador acepta el pedido.
      */
     public function crearPedidoDesdeCarrito(
         int $idCliente,
@@ -430,6 +432,10 @@ class PedidoClienteModel
                 return $this->fallo('Este pedido ya no se puede cancelar porque está en tránsito o fue entregado.');
             }
 
+            // Si el pedido ya estaba aceptado, su stock estaba descontado: se repone.
+            // (Si seguía Pendiente no hay nada que reponer; la función no hace nada.)
+            StockPedido::reponer($idPedido);
+
             $this->db->table('status')->insert([
                 'estado'     => 'cancelado',
                 'id_pedido2' => $idPedido,
@@ -533,58 +539,64 @@ class PedidoClienteModel
         return $fila['estado'] ?? null;
     }
 
+    /**
+     * El administrador acepta el pedido. Es el ÚNICO punto del flujo donde se
+     * descuenta el stock: valida existencias y resta exactamente la cantidad pedida,
+     * todo en una transacción con bloqueo de filas (sin sobreventas ni doble descuento).
+     */
     public function aceptarPedido(int $idPedido): array
     {
-        $pedido = $this->db->table('pedido')->where('id_pedido', $idPedido)->get()->getRowArray();
-        if (! $pedido) {
-            return ['success' => false, 'message' => 'El pedido no existe.'];
-        }
-        if (($this->getEstadoActual($idPedido) ?? 'pedido') !== 'pedido') {
-            return ['success' => false, 'message' => 'Este pedido ya no está pendiente.'];
-        }
+        $this->db->transBegin();
 
-        // Si las reservas superan el existente, otro pedido se atendió primero.
-        $filas = $this->db->table('producto_pedido pp')
-            ->select('pr.nombre, e.exis_total_general, e.exis_bloqueo')
-            ->join('producto pr', 'pr.id_producto = pp.id_producto3')
-            ->join('existencias e', 'e.id_producto1 = pp.id_producto3', 'left')
-            ->where('pp.id_pedido1', $idPedido)
-            ->get()
-            ->getResultArray();
+        try {
+            // Bloqueo del pedido: dos clics (o dos administradores) no pueden aceptarlo ni descontar dos veces.
+            $pedido = $this->db->query(
+                'SELECT * FROM pedido WHERE id_pedido = ? FOR UPDATE',
+                [$idPedido]
+            )->getRowArray();
 
-        $faltan = [];
-        foreach ($filas as $f) {
-            if ($f['exis_total_general'] === null || (float) $f['exis_bloqueo'] > (float) $f['exis_total_general']) {
-                $faltan[] = $f['nombre'];
+            if (! $pedido) {
+                return $this->fallo('El pedido no existe.');
             }
-        }
-        if ($faltan !== []) {
+            if (($this->getEstadoActual($idPedido) ?? 'pedido') !== 'pedido') {
+                return $this->fallo('Este pedido ya no está pendiente.');
+            }
+
+            $stock = StockPedido::descontar($idPedido);
+            if (! $stock['ok']) {
+                $this->db->transRollback();
+
+                return [
+                    'success'   => false,
+                    'sin_stock' => $stock['sin_stock'],
+                    'message'   => $stock['message'] . ($stock['sin_stock']
+                        ? ' Puedes dejar el pedido en "Pendiente" hasta reponer el producto.'
+                        : ''),
+                ];
+            }
+
+            $this->db->table('status')->insert([
+                'estado'     => 'confirmado',
+                'id_pedido2' => $idPedido,
+                'fecha'      => date('Y-m-d H:i:s'),
+            ]);
+            $this->db->table('pedido')->where('id_pedido', $idPedido)->update(['en_espera' => 0]);
+
+            if (! $this->db->transStatus()) {
+                return $this->fallo('No se pudo aceptar el pedido.');
+            }
+            $this->db->transCommit();
+
             return [
-                'success'   => false,
-                'sin_stock' => true,
-                'message'   => 'No hay existencia suficiente para: ' . implode(', ', $faltan)
-                    . '. Puedes dejar el pedido en "Pendiente" hasta reponer el producto.',
+                'success'             => true,
+                'message'             => 'Pedido aceptado.',
+                'necesita_repartidor' => empty($pedido['id_repartidor']),
             ];
+        } catch (\Throwable $e) {
+            log_message('error', 'No se pudo aceptar el pedido: ' . $e->getMessage());
+
+            return $this->fallo('No se pudo aceptar el pedido.');
         }
-
-        $this->db->transStart();
-        $this->db->table('status')->insert([
-            'estado'     => 'confirmado',
-            'id_pedido2' => $idPedido,
-            'fecha'      => date('Y-m-d H:i:s'),
-        ]);
-        $this->db->table('pedido')->where('id_pedido', $idPedido)->update(['en_espera' => 0]);
-        $this->db->transComplete();
-
-        if (! $this->db->transStatus()) {
-            return ['success' => false, 'message' => 'No se pudo aceptar el pedido.'];
-        }
-
-        return [
-            'success'            => true,
-            'message'            => 'Pedido aceptado.',
-            'necesita_repartidor' => empty($pedido['id_repartidor']),
-        ];
     }
 
     public function ponerEnEspera(int $idPedido, bool $valor): array

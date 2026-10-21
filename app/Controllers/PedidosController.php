@@ -182,7 +182,11 @@ class PedidosController extends BaseController
             ]);
         }
 
-        return $this->response->setJSON(['success' => false, 'message' => 'Error al actualizar el estado']);
+        // Si el fallo fue por existencias, se muestra el motivo real.
+        return $this->response->setJSON([
+            'success' => false,
+            'message' => $pedidoModel->ultimoError !== '' ? $pedidoModel->ultimoError : 'Error al actualizar el estado',
+        ]);
     }
 
     public function registrarAbono()
@@ -325,7 +329,14 @@ class PedidosController extends BaseController
         ];
 
 
-        $pedidoModel->actualizarPedidoCompleto($idPedido, $updateData, $productos);
+        $ok = $pedidoModel->actualizarPedidoCompleto($idPedido, $updateData, $productos);
+
+        if (! $ok) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => $pedidoModel->ultimoError !== '' ? $pedidoModel->ultimoError : 'No se pudo actualizar el pedido.',
+            ]);
+        }
 
         return $this->response->setJSON(['success' => true, 'message' => 'Pedido actualizado correctamente']);
     }

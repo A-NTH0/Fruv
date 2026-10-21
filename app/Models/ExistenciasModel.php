@@ -28,6 +28,24 @@ class ExistenciasModel extends Model {
     {
         $db = \Config\Database::connect();
 
+        $existeRegistro = $db->table('existencias')
+            ->where('id_producto1', $idProducto)
+            ->countAllResults() > 0;
+
+        if ($existeRegistro) {
+            // El trigger actualizar_por_nueva_entrada ya sumó la conversión al total físico.
+            // Aquí NO se recalcula el total desde el histórico de entradas (eso borraba los
+            // descuentos por ventas y mermas); solo se recalcula lo disponible.
+            return (bool) $db->query(
+                'UPDATE existencias
+                    SET exis_venta = GREATEST(0, exis_total_general - exis_bloqueo),
+                        fecha      = ?
+                  WHERE id_producto1 = ?',
+                [date('Y-m-d'), $idProducto]
+            );
+        }
+
+        // Producto sin fila de existencias: el trigger no tenía nada que actualizar.
         $totalConversion = (float) $db->table('entrada')
             ->selectSum('conversion')
             ->where('id_producto2', $idProducto)
@@ -35,32 +53,13 @@ class ExistenciasModel extends Model {
             ->getRow()
             ->conversion;
 
-        $existeRegistro = $db->table('existencias')
-            ->where('id_producto1', $idProducto)
-            ->countAllResults() > 0;
-
-        if ($existeRegistro) {
-            $bloqueo = (float) $db->table('existencias')
-                ->select('exis_bloqueo')
-                ->where('id_producto1', $idProducto)
-                ->get()
-                ->getRow()
-                ->exis_bloqueo;
-
-            return $db->table('existencias')->where('id_producto1', $idProducto)->update([
-                'exis_total_general' => $totalConversion,
-                'exis_venta'         => max(0, $totalConversion - $bloqueo),
-                'fecha'              => date('Y-m-d'),
-            ]);
-        } else {
-            return $db->table('existencias')->insert([
-                'id_producto1'       => $idProducto,
-                'exis_total_general' => $totalConversion,
-                'exis_bloqueo'       => 0,
-                'exis_venta'         => $totalConversion,
-                'exis_total_dia'     => 0,
-                'fecha'              => date('Y-m-d'),
-            ]);
-        }
+        return $db->table('existencias')->insert([
+            'id_producto1'       => $idProducto,
+            'exis_total_general' => $totalConversion,
+            'exis_bloqueo'       => 0,
+            'exis_venta'         => $totalConversion,
+            'exis_total_dia'     => 0,
+            'fecha'              => date('Y-m-d'),
+        ]);
     }
 }
