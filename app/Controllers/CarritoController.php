@@ -165,11 +165,31 @@ class CarritoController extends BaseController
             return $this->error('El horario de entrega no es válido.');
         }
 
+        // Método de pago: de contado = 100 % del total; a crédito = pago inicial (puede ser $0).
+        $modalidad = (string) $this->request->getPost('modalidad_pago');
+        if (! in_array($modalidad, ['contado', 'credito'], true)) {
+            return $this->error('Selecciona un método de pago.');
+        }
+
+        $pagoInicial = 0.0;
+        if ($modalidad === 'credito') {
+            $texto = trim((string) $this->request->getPost('pago_inicial'));
+            if ($texto === '') {
+                $texto = '0';
+            }
+            if (! is_numeric($texto) || (float) $texto < 0) {
+                return $this->error('El pago inicial debe ser un monto válido (puede ser $0).');
+            }
+            $pagoInicial = (float) $texto;
+        }
+
         $res = (new PedidoClienteModel())->crearPedidoDesdeCarrito(
             (int) session()->get('cliente_id'),
             $carrito,
             $fecha !== '' ? $fecha : null,
-            $horario !== '' ? $horario : null
+            $horario !== '' ? $horario : null,
+            $modalidad,
+            $pagoInicial
         );
 
         if (! $res['success']) {

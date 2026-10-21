@@ -433,13 +433,19 @@ function verDetallePedido(idPedido) {
                     <div><span class="text-gray-500">Entrega programada:</span> <span class="font-medium">${p.fecha_entrega_programada || 'Pendiente'}</span></div>
                     <div><span class="text-gray-500">Horario:</span> <span class="font-medium">${p.horario_entrega || 'No especificado'}</span></div>
                     <div><span class="text-gray-500">Repartidor:</span> <span class="font-medium">${p.repartidor_nombre || 'Sin asignar'} ${p.repartidor_apellido || ''}</span></div>
-                    <div><span class="text-gray-500">Pago:</span> <span class="font-medium">${p.modalidad_pago === 'credito' ? '💰 Crédito' : '💵 Contado'}</span></div>
+                    <div><span class="text-gray-500">Pago:</span> <span class="font-medium">${p.modalidad_pago === 'credito' ? '💰 A Crédito' : '💵 De Contado'}</span></div>
+                    <div><span class="text-gray-500">Origen:</span> <span class="font-medium">${p.origen === 'cliente' ? '🌐 Cliente web' : '🧑‍💼 Administrador'}</span></div>
                     <div class="col-span-2"><span class="text-gray-500">Total:</span> <span class="font-bold text-rose-600 text-lg">$${parseFloat(p.total).toFixed(2)}</span></div>
                 </div>
             </div>
             <div class="bg-gray-50 p-4 rounded-xl"><h3 class="font-bold text-gray-700 mb-3">🛒 Productos</h3>${prodsHtml}</div>`;
 
         if (p.modalidad_pago === 'credito') {
+            const totalDet   = parseFloat(p.total) || 0;
+            const inicialDet = parseFloat(p.pago_inicial) || 0;
+            const deudaDet   = parseFloat(p.deuda_restante) || 0;
+            const abonadoDet = (data.historial_abonos || []).reduce((s, a) => s + (parseFloat(a.monto) || 0), 0);
+            const liquidado  = deudaDet <= 0.004;
             let abonosHtml = '<div class="space-y-2">';
             if (data.historial_abonos?.length) {
                 data.historial_abonos.forEach(a => {
@@ -454,8 +460,12 @@ function verDetallePedido(idPedido) {
             html += `<div class="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-xl">
                 <h3 class="font-bold text-purple-800 mb-3">💳 Crédito</h3>
                 <div class="grid grid-cols-2 gap-3 text-sm">
-                    <div><span class="text-gray-500">Total:</span> <span class="font-medium">$${parseFloat(p.total).toFixed(2)}</span></div>
-                    <div><span class="text-gray-500">Deuda restante:</span> <span class="font-bold text-rose-600">$${parseFloat(p.deuda_restante).toFixed(2)}</span></div>
+                    <div><span class="text-gray-500">Total:</span> <span class="font-medium">$${totalDet.toFixed(2)}</span></div>
+                    <div><span class="text-gray-500">Pago inicial:</span> <span class="font-medium">$${inicialDet.toFixed(2)}</span></div>
+                    <div><span class="text-gray-500">Abonos posteriores:</span> <span class="font-medium">$${abonadoDet.toFixed(2)}</span></div>
+                    <div><span class="text-gray-500">Total pagado:</span> <span class="font-medium">$${Math.max(0, totalDet - deudaDet).toFixed(2)}</span></div>
+                    <div><span class="text-gray-500">Saldo restante:</span> <span class="font-bold ${liquidado ? 'text-green-600' : 'text-rose-600'}">$${deudaDet.toFixed(2)}</span></div>
+                    <div><span class="text-gray-500">Estado de pago:</span> <span class="font-bold ${liquidado ? 'text-green-600' : 'text-amber-600'}">${liquidado ? 'Totalmente Pagado' : 'Saldo pendiente'}</span></div>
                 </div>
             </div>
             <div class="bg-gray-50 p-4 rounded-xl"><h3 class="font-bold text-gray-700 mb-3">📋 Historial de Abonos</h3>${abonosHtml}</div>`;
@@ -826,6 +836,8 @@ function abrirModalNuevoPedido() {
     renderizarProductos();
     document.getElementById('np-fecha_pedido').value       = new Date().toISOString().slice(0, 10);
     document.getElementById('np-modalidad').value          = 'contado';
+    document.getElementById('np-pago-inicial').value       = '0';
+    actualizarPagoNuevo();
     document.getElementById('np-cliente').value            = '';
     document.getElementById('np-cliente-texto').value      = '';
     document.getElementById('np-repartidor').value         = '';
@@ -902,6 +914,7 @@ function renderizarProductos() {
         body.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-400">No hay productos agregados</td></tr>';
         const tm = document.getElementById('total-modal');
         if (tm) tm.textContent = '$0.00';
+        actualizarPagoNuevo();
         return;
     }
     let html = '', total = 0;
@@ -923,7 +936,25 @@ function renderizarProductos() {
     body.innerHTML = html;
     const tm = document.getElementById('total-modal');
     if (tm) tm.textContent = `$${total.toFixed(2)}`;
+    actualizarPagoNuevo();
     lucide.createIcons();
+}
+
+/** Nuevo pedido: A crédito muestra el pago inicial (desde $0); De contado lo oculta y toma el total como pagado. */
+function actualizarPagoNuevo() {
+    const box = document.getElementById('np-pago-box');
+    if (!box) return;
+
+    const credito = document.getElementById('np-modalidad').value === 'credito';
+    box.classList.toggle('hidden', !credito);
+
+    const total = productosSeleccionados.reduce((s, p) => s + p.sub, 0);
+    const input = document.getElementById('np-pago-inicial');
+    input.max = total;
+    if (!credito) input.value = '0';
+
+    const inicial = parseFloat(input.value) || 0;
+    document.getElementById('np-saldo').textContent = '$' + Math.max(0, total - inicial).toFixed(2);
 }
 
 async function guardarNuevoPedido() {
@@ -943,7 +974,12 @@ async function guardarNuevoPedido() {
     }
     if (productosSeleccionados.length === 0) { Swal.fire('Error', 'Agregue al menos un producto', 'error'); return; }
 
-    const total = productosSeleccionados.reduce((s, p) => s + p.sub, 0);
+    const total   = productosSeleccionados.reduce((s, p) => s + p.sub, 0);
+    const credito = document.getElementById('np-modalidad').value === 'credito';
+    const inicial = credito ? (parseFloat(document.getElementById('np-pago-inicial').value) || 0) : total;
+
+    if (credito && inicial < 0)               { Swal.fire('Error', 'El pago inicial no puede ser negativo', 'error'); return; }
+    if (credito && inicial > total + 0.001)   { Swal.fire('Error', 'El pago inicial no puede superar el total del pedido', 'error'); return; }
 
     Swal.fire({ title: 'Guardando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
@@ -954,6 +990,7 @@ async function guardarNuevoPedido() {
                 id_cliente:     clienteId,
                 id_repartidor:  repId,
                 modalidad_pago: document.getElementById('np-modalidad').value,
+                pago_inicial:   credito ? inicial : 0,
                 total,
                 fecha_pedido:   document.getElementById('np-fecha_pedido').value,
                 fecha_entrega:  document.getElementById('np-fecha_entrega').value,
@@ -980,6 +1017,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initKanbanScroll();
     inicializarBuscador();
     lucide.createIcons();
+
+    document.getElementById('np-modalidad').addEventListener('change', actualizarPagoNuevo);
+    document.getElementById('np-pago-inicial').addEventListener('input', actualizarPagoNuevo);
 
     crearAutocomplete('np-cliente-texto',    'np-cliente',    'np-cliente-lista',    CLIENTES_DATA,     avisoClientePreferencial, 'Se debe registrar primero al cliente');
     crearAutocomplete('np-repartidor-texto', 'np-repartidor', 'np-repartidor-lista', REPARTIDORES_DATA, null, 'Se debe registrar primero al repartidor');

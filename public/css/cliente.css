@@ -123,3 +123,32 @@ body { font-family: 'Inter', system-ui, sans-serif; background: #f8fafc; margin:
     .cart-item .qty, .cart-item .sub { grid-column: 2; }
     .cart-item .sub { text-align: left; }
 }
+
+/* Cancelado (más visible) */
+.badge-red { background: #fee2e2; color: #b91c1c; }
+.pedido-card.is-cancelado { border-color: #fca5a5; background: #fff7f7; }
+.pedido-card.is-cancelado .pedido-top h2 { color: #b91c1c; }
+
+/* Método de pago en el carrito */
+.pago-fieldset { border: 0; padding: 0; }
+.pago-fieldset legend { font-size: .75rem; font-weight: 700; color: var(--muted); margin-bottom: .35rem; padding: 0; }
+.pago-opt { display: flex !important; align-items: center; gap: .5rem; font-size: .88rem !important; font-weight: 600 !important; color: var(--ink) !important; margin-bottom: .3rem !important; cursor: pointer; }
+.pago-opt input { width: auto; margin: 0; }
+.pago-opt small { color: var(--muted); font-weight: 500; }
+.pago-saldo { margin: .4rem 0 0; font-size: .8rem; color: var(--muted); }
+.pago-saldo strong { color: var(--ink); }
+
+/* Pago y acciones en Mis pedidos */
+.pedido-pago:empty, .pedido-acciones:empty { display: none; }
+.pedido-pago { margin-top: .75rem; background: #f8fafc; border: 1px solid var(--line); border-radius: .85rem; padding: .7rem .9rem; font-size: .82rem; }
+.pago-linea { display: flex; justify-content: space-between; gap: 1rem; padding: .15rem 0; color: var(--muted); }
+.pago-linea strong { color: var(--ink); }
+.pago-linea.saldo strong { color: #b45309; }
+.pago-estado { margin-top: .45rem; }
+.pedido-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin-top: .75rem; }
+.abono-form { display: inline-flex; gap: .4rem; align-items: center; }
+.abono-form input { width: 7.5rem; border: 1px solid var(--line); border-radius: .7rem; padding: .45rem .6rem; font-size: .85rem; }
+.btn-abonar { background: var(--rose); color: #fff; border: 0; border-radius: .7rem; padding: .5rem .9rem; font-weight: 700; font-size: .82rem; cursor: pointer; }
+.btn-abonar:hover { background: var(--rose-d); }
+.btn-cancelar { background: #fff; color: #b91c1c; border: 1px solid #fca5a5; border-radius: .7rem; padding: .5rem .9rem; font-weight: 700; font-size: .82rem; cursor: pointer; }
+.btn-cancelar:hover { background: #fee2e2; }

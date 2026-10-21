@@ -29,6 +29,7 @@ $routes->get('clientes', 'ClientesController::index');
 $routes->post('clientes/guardar', 'ClientesController::guardar');
 $routes->post('clientes/actualizar', 'ClientesController::actualizar');
 $routes->post('clientes/baja', 'ClientesController::darDeBaja');
+$routes->post('clientes/preferencial', 'ClientesController::preferencial');
 $routes->get('clientes/verificarEliminar/(:num)', 'ClientesController::verificarEliminar/$1');
 $routes->get('clientes/eliminar/(:num)', 'ClientesController::eliminar/$1');
 
@@ -66,4 +67,6 @@ $routes->post('carrito/confirmar', 'CarritoController::confirmar');
 
 $routes->get('mis-pedidos', 'ClientePedidosController::index');
 $routes->get('mis-pedidos/estados', 'ClientePedidosController::estados');
+$routes->post('mis-pedidos/cancelar', 'ClientePedidosController::cancelar');
+$routes->post('mis-pedidos/abonar', 'ClientePedidosController::abonar');
 $routes->get('perfil', 'ClientePedidosController::perfil');

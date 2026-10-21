@@ -36,8 +36,8 @@ function botonesTarjeta(p, estado, enEspera) {
     }
     if (estado === 'en_transito') {
         const credito = p.modalidad_pago === 'credito';
-        return `<button class="btn-mini btn-ok" onclick="confirmarAccion(${id},'entregado')">${credito ? '📦 Entregar y cobrar' : '📦 Entregado'}</button>
-                <button class="btn-mini btn-cancel" onclick="confirmarAccion(${id},'cancelado')">❌ Cancelar</button>`;
+        // Desde "En tránsito" ya NO se puede cancelar el pedido.
+        return `<button class="btn-mini btn-ok" onclick="confirmarAccion(${id},'entregado')">${credito ? '📦 Entregar y cobrar' : '📦 Entregado'}</button>`;
     }
     if (estado === 'credito' && parseFloat(p.deuda_restante) > 0) {
         return `<button class="btn-mini btn-abono" onclick="abrirModalAbono(${id},${p.deuda_restante})">💰 Registrar abono</button>`;
@@ -63,7 +63,23 @@ function crearTarjetaPedido(p, estado) {
     const tags = [];
     if (p.origen === 'cliente')           tags.push('<span class="tag tag-web">Cliente web</span>');
     if (enEspera)                          tags.push('<span class="tag tag-espera">En espera</span>');
-    if (p.modalidad_pago === 'credito')    tags.push('<span class="tag tag-credito">Crédito</span>');
+    tags.push(p.modalidad_pago === 'credito'
+        ? '<span class="tag tag-credito">A Crédito</span>'
+        : '<span class="tag tag-contado">De Contado</span>');
+    if (p.modalidad_pago === 'credito' && estado !== 'cancelado' && (parseFloat(p.deuda_restante) || 0) <= 0.004) {
+        tags.push('<span class="tag tag-pagado">Totalmente pagado</span>');
+    }
+
+    // A crédito: pago inicial, abonos posteriores y saldo restante (se ve en cualquier columna).
+    let lineaPago = '';
+    if (p.modalidad_pago === 'credito' && estado !== 'cancelado') {
+        const total   = parseFloat(p.total) || 0;
+        const inicial = parseFloat(p.pago_inicial) || 0;
+        const saldo   = parseFloat(p.deuda_restante) || 0;
+        const abonado = Math.max(0, total - inicial - saldo);
+        lineaPago = `<div class="tp-line pago">Inicial: $${inicial.toFixed(2)}${abonado > 0.004 ? ' · Abonado: $' + abonado.toFixed(2) : ''}</div>
+                     <div class="tp-line saldo">Saldo: $${saldo.toFixed(2)}</div>`;
+    }
 
     const chips = productos.slice(0, 3)
         .map(x => `<span class="chip-prod">${escHtml(x.nombre_producto)} ×${cantidadTxt(x.cantidad)}</span>`).join('');
@@ -84,7 +100,7 @@ function crearTarjetaPedido(p, estado) {
         <div class="tp-prods productos-lista">${chips || '<span class="text-gray-300 italic">Sin productos</span>'}${mas}</div>
         ${repNombre ? `<div class="tp-line"><i data-lucide="user" class="w-3 h-3"></i><span>${escHtml(repNombre)}</span></div>` : ''}
         ${entrega}
-        ${estado === 'credito' && parseFloat(p.deuda_restante) > 0 ? `<div class="tp-line saldo">Saldo: $${parseFloat(p.deuda_restante).toFixed(2)}</div>` : ''}
+        ${lineaPago}
         <div class="tp-foot">
             <div class="tp-actions">${botonesTarjeta(p, estado, enEspera)}</div>
             <div class="tp-icons">

@@ -21,6 +21,35 @@ function toast(icon, title) {
     Swal.fire({ toast: true, position: 'top-end', icon, title, showConfirmButton: false, timer: 2200, timerProgressBar: true });
 }
 
+/* ───────── Método de pago (checkout) ───────── */
+let totalActual = 0;
+
+function modalidadPago() {
+    const r = document.querySelector('input[name="modalidad_pago"]:checked');
+    return r ? r.value : 'contado';
+}
+
+function pagoInicialValor() {
+    const v = parseFloat(document.getElementById('pago_inicial')?.value);
+    return isNaN(v) ? 0 : v;
+}
+
+/** Muestra u oculta el campo de pago inicial y recalcula el saldo pendiente. */
+function actualizarPagoUI() {
+    const box = document.getElementById('pago-inicial-box');
+    if (!box) return;
+
+    const credito = modalidadPago() === 'credito';
+    box.hidden = !credito;
+
+    const input = document.getElementById('pago_inicial');
+    input.max = totalActual;
+    if (credito && input.value === '') input.value = '0';
+
+    const saldo = credito ? Math.max(0, totalActual - pagoInicialValor()) : 0;
+    document.getElementById('pago-saldo').textContent = dinero(saldo);
+}
+
 function actualizarBadge(n) {
     const b = document.getElementById('badge-carrito');
     if (!b) return;
@@ -80,6 +109,8 @@ function renderCarrito(data) {
 
     document.getElementById('sum-cuenta').textContent = data.cuenta;
     document.getElementById('sum-total').textContent = dinero(data.total);
+    totalActual = parseFloat(data.total) || 0;
+    actualizarPagoUI();
     document.getElementById('btn-confirmar').disabled = vacio || !data.todo_ok;
     document.getElementById('btn-vaciar').style.display = vacio ? 'none' : '';
     document.getElementById('carrito-resumen').style.display = vacio ? 'none' : '';
@@ -117,9 +148,21 @@ async function recargarResumen() {
 }
 
 async function confirmarPedido() {
+    const credito = modalidadPago() === 'credito';
+    const inicial = pagoInicialValor();
+
+    if (credito) {
+        if (inicial < 0) { toast('warning', 'El pago inicial no puede ser negativo'); return; }
+        if (inicial > totalActual + 0.001) { toast('warning', 'El pago inicial no puede superar el total'); return; }
+    }
+
+    const resumenPago = credito
+        ? `Pago a crédito. Pago inicial: ${dinero(inicial)} · Saldo pendiente: ${dinero(totalActual - inicial)}.`
+        : `Pago de contado por ${dinero(totalActual)}.`;
+
     const r = await Swal.fire({
         title: '¿Enviar tu pedido?',
-        text: 'La tienda lo recibirá como Pendiente y lo aceptará cuando confirme la disponibilidad.',
+        text: resumenPago + ' La tienda lo recibirá como Pendiente y lo aceptará cuando confirme la disponibilidad.',
         icon: 'question', showCancelButton: true,
         confirmButtonText: 'Sí, enviar pedido', cancelButtonText: 'Revisar', confirmButtonColor: '#e11d48',
     });
@@ -130,6 +173,8 @@ async function confirmarPedido() {
         const data = await postCarrito('carrito/confirmar', {
             fecha_entrega: document.getElementById('fecha_entrega').value,
             horario: document.getElementById('horario').value,
+            modalidad_pago: modalidadPago(),
+            pago_inicial: credito ? inicial : 0,
         });
         Swal.close();
         if (data.success) {
@@ -146,5 +191,9 @@ async function confirmarPedido() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('input[name="modalidad_pago"]').forEach(r => r.addEventListener('change', actualizarPagoUI));
+    const ini = document.getElementById('pago_inicial');
+    if (ini) ini.addEventListener('input', actualizarPagoUI);
+
     if (typeof CARRITO_INICIAL !== 'undefined') renderCarrito(CARRITO_INICIAL);
 });

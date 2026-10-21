@@ -57,7 +57,8 @@
                     <?php foreach ($clientes as $cliente): ?>
                     <?php
                         $compras       = (int) ($cliente['compras'] ?? 0);
-                        $esPreferencial = \App\Models\ClienteModel::esPreferencial($compras);
+                        $manual        = (int) ($cliente['preferencial_manual'] ?? 0);
+                        $esPreferencial = \App\Models\ClienteModel::esPreferencial($compras, $manual);
                         $faltan        = max(0, \App\Models\ClienteModel::UMBRAL_PREFERENCIAL - $compras);
                         $datosEditar   = [
                             'id_cliente' => $cliente['id_cliente'], 'nombre' => $cliente['nombre'],
@@ -82,8 +83,9 @@
                                    <span class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-xs font-bold">
                                        <i data-lucide="star" class="w-3 h-3" aria-hidden="true"></i> Cliente preferencial
                                    </span>
+                                   <p class="mt-1 text-xs text-gray-600"><?= $manual === 1 ? 'Asignado manualmente' : 'Automático · ' . $compras . ' pedido(s) de contado pagados' ?></p>
                                <?php else: ?>
-                                   <p class="mt-1 text-xs text-gray-600"><?= $compras ?> compra(s) · faltan <?= $faltan ?> para ser preferencial</p>
+                                   <p class="mt-1 text-xs text-gray-600"><?= $compras ?> pedido(s) de contado pagados · faltan <?= $faltan ?> para ser preferencial</p>
                                <?php endif; ?>
                                 
                                 <div class="mt-4 space-y-2 text-sm text-gray-600">
@@ -113,6 +115,11 @@
                             <button type="button" data-cliente="<?= esc(json_encode($datosEditar), 'attr') ?>" onclick="editarCliente(JSON.parse(this.dataset.cliente))" aria-label="Editar cliente <?= esc($nombreCompleto, 'attr') ?>" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors">
                                 <i data-lucide="edit-3" class="w-4 h-4" aria-hidden="true"></i> Editar
                             </button>
+                            <?php if (! $esPreferencial || $manual === 1): ?>
+                            <button type="button" onclick="togglePreferencial(<?= (int) $cliente['id_cliente'] ?>, <?= $manual === 1 ? 0 : 1 ?>)" aria-label="<?= $manual === 1 ? 'Quitar' : 'Marcar como' ?> cliente preferencial: <?= esc($nombreCompleto, 'attr') ?>" title="<?= $manual === 1 ? 'Quitar marca de preferencial' : 'Marcar como cliente preferencial' ?>" class="bg-yellow-50 hover:bg-yellow-100 text-yellow-800 p-2 rounded-lg transition-colors">
+                                <i data-lucide="star" class="w-5 h-5" aria-hidden="true"></i>
+                            </button>
+                            <?php endif; ?>
                             <button type="button" onclick="confirmarBaja(<?= (int) $cliente['id_cliente'] ?>)" aria-label="Dar de baja a <?= esc($nombreCompleto, 'attr') ?>" title="Dar de baja (borra sus datos personales)" class="bg-amber-50 hover:bg-amber-100 text-amber-900 p-2 rounded-lg transition-colors">
                                 <i data-lucide="user-x" class="w-5 h-5" aria-hidden="true"></i>
                             </button>
@@ -337,6 +344,39 @@
         });
 
         // Baja manual (RNF-04): anonimiza datos personales y conserva el historial de pedidos
+        /** Ajuste manual del administrador: marca o quita a un cliente como preferencial. */
+        function togglePreferencial(id, valor) {
+            Swal.fire({
+                title: valor ? '¿Marcar como cliente preferencial?' : '¿Quitar la marca de preferencial?',
+                text: valor ? 'Se aplica sin importar su historial de pagos ni su número de pedidos.'
+                            : 'Seguirá siendo preferencial solo si cumple 5 pedidos pagados de contado.',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#ca8a04',
+                cancelButtonColor: '#4b5563',
+                confirmButtonText: valor ? 'Sí, marcar' : 'Sí, quitar',
+                cancelButtonText: 'Cancelar',
+                reverseButtons: true
+            }).then(async (result) => {
+                if (!result.isConfirmed) return;
+                try {
+                    const res  = await fetch("<?= base_url('clientes/preferencial') ?>", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({ id_cliente: id, valor: valor })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        Swal.fire({ icon: 'success', title: data.message, timer: 1500, showConfirmButton: false }).then(() => location.reload());
+                    } else {
+                        Swal.fire('Error', data.message || 'No se pudo actualizar', 'error');
+                    }
+                } catch (e) {
+                    Swal.fire('Error', 'Error de conexión al servidor', 'error');
+                }
+            });
+        }
+
         function confirmarBaja(id) {
             Swal.fire({
                 title: '¿Dar de baja al cliente?',

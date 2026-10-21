@@ -10,7 +10,7 @@ $limpio = static function ($v): string {
 $nombreCompleto = trim($limpio($cliente['nombre']) . ' ' . $limpio($cliente['ap_paterno']) . ' ' . $limpio($cliente['ap_materno']));
 $iniciales      = strtoupper(mb_substr($limpio($cliente['nombre']), 0, 1) . mb_substr($limpio($cliente['ap_paterno']), 0, 1));
 $compras        = (int) ($cliente['compras'] ?? 0);
-$esPreferencial = ClienteModel::esPreferencial($compras);
+$esPreferencial = ClienteModel::esPreferencial($compras, $cliente['preferencial_manual'] ?? 0);
 $faltan         = max(0, ClienteModel::UMBRAL_PREFERENCIAL - $compras);
 
 $partesDir = [];
@@ -78,12 +78,12 @@ if ($direccion) {
                 <h3>Mi actividad</h3>
                 <div class="stat-pair">
                     <div><span class="stat-num"><?= (int) $totalPedidos ?></span><span class="muted">Pedidos realizados</span></div>
-                    <div><span class="stat-num"><?= $compras ?></span><span class="muted">Compras concluidas</span></div>
+                    <div><span class="stat-num"><?= $compras ?></span><span class="muted">Pedidos de contado pagados</span></div>
                 </div>
                 <p class="muted" style="margin-top:.75rem">
                     <?= $esPreferencial
                         ? '¡Ya eres cliente preferencial!'
-                        : 'Te faltan ' . $faltan . ' compra(s) concluida(s) para ser cliente preferencial.' ?>
+                        : 'Te faltan ' . $faltan . ' pedido(s) de contado pagados al 100 % para ser cliente preferencial. Los pedidos a crédito no suman.' ?>
                 </p>
                 <a href="<?= base_url('mis-pedidos') ?>" class="btn-ghost" style="margin-top:1rem;display:inline-block">Ver mis pedidos</a>
             </section>

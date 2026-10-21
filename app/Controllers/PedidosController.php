@@ -93,7 +93,7 @@ class PedidosController extends BaseController
     public function guardar()
     {
         $pedidoModel    = new PedidoModel();
-        $modalidad      = $this->request->getPost('modalidad_pago');
+        $modalidad      = $this->request->getPost('modalidad_pago') === 'credito' ? 'credito' : 'contado';
         $total          = floatval($this->request->getPost('total'));
         $productos      = json_decode($this->request->getPost('productos'), true) ?? [];
 
@@ -103,6 +103,23 @@ class PedidosController extends BaseController
                 $total += $prod['cantidad'] * $prod['precio'];
             }
         }
+        $total = round($total, 2);
+
+        // De contado: el total completo se toma como pagado. A crédito: pago inicial desde $0.
+        if ($modalidad === 'credito') {
+            $pagoInicial = floatval($this->request->getPost('pago_inicial'));
+            if ($pagoInicial < 0) {
+                return $this->response->setJSON(['success' => false, 'message' => 'El pago inicial no puede ser negativo.']);
+            }
+            $pagoInicial = round($pagoInicial, 2);
+            if ($pagoInicial > $total) {
+                return $this->response->setJSON(['success' => false, 'message' => 'El pago inicial no puede superar el total del pedido ($' . number_format($total, 2) . ').']);
+            }
+            $deuda = round($total - $pagoInicial, 2);
+        } else {
+            $pagoInicial = $total;
+            $deuda       = 0;
+        }
 
         $dataPedido = [
             'fecha'                    => $this->request->getPost('fecha_pedido') ?: date('Y-m-d'),
@@ -110,7 +127,9 @@ class PedidosController extends BaseController
             'id_repartidor'            => $this->request->getPost('id_repartidor') ?: null,
             'modalidad_pago'           => $modalidad,
             'total'                    => $total,
-            'deuda_restante'           => ($modalidad == 'credito') ? $total : 0,
+            'deuda_restante'           => $deuda,
+            'pago_inicial'             => $pagoInicial,
+            'origen'                   => 'admin',
             'fecha_entrega'            => null,
             'fecha_entrega_programada' => $this->request->getPost('fecha_entrega') ?: null,
             'horario_entrega'          => $this->request->getPost('horario') ?: null,
@@ -144,6 +163,15 @@ class PedidosController extends BaseController
         }
 
         $pedidoModel = new PedidoModel();
+
+        // Solo se puede cancelar antes de "En tránsito" (Pendiente o Aceptado).
+        if ($nuevoEstado === 'cancelado' && !$pedidoModel->puedeCancelar($idPedido)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Este pedido ya no se puede cancelar porque está en tránsito, fue entregado o ya estaba cancelado.',
+            ]);
+        }
+
         $resultado   = $pedidoModel->cambiarEstado($idPedido, $nuevoEstado, $repartidorId);
 
         if ($resultado) {
@@ -178,6 +206,12 @@ class PedidosController extends BaseController
 
         if (!$pedido) {
             return $this->response->setJSON(['success' => false, 'message' => 'Pedido no encontrado']);
+        }
+        if ($pedido['modalidad_pago'] !== 'credito') {
+            return $this->response->setJSON(['success' => false, 'message' => 'Solo los pedidos a crédito aceptan abonos']);
+        }
+        if ($pedidoModel->getEstadoActual($idPedido) === 'cancelado') {
+            return $this->response->setJSON(['success' => false, 'message' => 'El pedido está cancelado']);
         }
         if ($monto > $pedido['deuda_restante']) {
             return $this->response->setJSON(['success' => false, 'message' => 'El abono no puede superar la deuda restante ($' . number_format($pedido['deuda_restante'], 2) . ')']);
@@ -262,9 +296,21 @@ class PedidosController extends BaseController
             return $this->response->setJSON(['success' => false, 'message' => 'Pedido no encontrado']);
         }
 
-        $modalidad  = $this->request->getPost('modalidad_pago');
-        $total      = floatval($this->request->getPost('total'));
+        $modalidad  = $this->request->getPost('modalidad_pago') === 'credito' ? 'credito' : 'contado';
+        $total      = round(floatval($this->request->getPost('total')), 2);
         $productos  = json_decode($this->request->getPost('productos'), true) ?? [];
+
+        // El saldo se recalcula conservando el pago inicial y los abonos ya registrados.
+        $anterior = $pedidoModel->find($idPedido);
+        if ($modalidad === 'credito') {
+            $pagoInicial = ($anterior['modalidad_pago'] === 'credito')
+                ? min((float) $anterior['pago_inicial'], $total)
+                : 0.0;
+            $deuda = max(0, round($total - $pagoInicial - $pedidoModel->getAbonado($idPedido), 2));
+        } else {
+            $pagoInicial = $total;
+            $deuda       = 0;
+        }
 
         $updateData = [
             'id_cliente1'              => $this->request->getPost('id_cliente'),
@@ -274,7 +320,8 @@ class PedidosController extends BaseController
             'fecha_entrega_programada' => $this->request->getPost('fecha_entrega_programada') ?: null,
             'horario_entrega'          => $this->request->getPost('horario_entrega') ?: null,
             'total'                    => $total,
-            'deuda_restante'           => ($modalidad == 'credito') ? $total : 0,
+            'deuda_restante'           => $deuda,
+            'pago_inicial'             => $pagoInicial,
         ];
 
 

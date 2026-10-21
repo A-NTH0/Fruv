@@ -21,6 +21,9 @@ class PedidoClienteModel
         5 => 'Entregado',
     ];
 
+    /** Solo se puede cancelar mientras el pedido no haya entrado "En tránsito". */
+    public const ESTADOS_CANCELABLES = ['pedido', 'confirmado'];
+
     private const SUBQUERY_ULTIMO = '(SELECT id_pedido2, MAX(id_status) as max_id FROM status GROUP BY id_pedido2) as latest';
 
     private $db;
@@ -66,11 +69,50 @@ class PedidoClienteModel
                 return ['clave' => 'pagado', 'texto' => 'Pagado', 'color' => 'green', 'paso' => 5,
                     'detalle' => 'Tu pedido fue entregado y pagado por completo.'];
             case 'cancelado':
-                return ['clave' => 'cancelado', 'texto' => 'Cancelado', 'color' => 'slate', 'paso' => 0,
+                return ['clave' => 'cancelado', 'texto' => 'Pedido Cancelado', 'color' => 'red', 'paso' => 0,
                     'detalle' => 'Este pedido fue cancelado.'];
         }
 
         return ['clave' => 'pendiente', 'texto' => 'Pendiente', 'color' => 'rose', 'paso' => 1, 'detalle' => ''];
+    }
+
+    // ─────────────────────────────────────────────
+    //  PAGO VISIBLE PARA EL CLIENTE
+    // ─────────────────────────────────────────────
+
+    /**
+     * Resume cómo se paga un pedido. Un pedido a crédito siempre se muestra como
+     * "A Crédito"; cuando el saldo llega a $0 solo cambia su estado de pago a
+     * "Totalmente Pagado".
+     */
+    public static function describirPago(array $p, ?string $estadoActual): array
+    {
+        $total      = (float) ($p['total'] ?? 0);
+        $saldo      = max(0.0, (float) ($p['deuda_restante'] ?? 0));
+        $esCredito  = ($p['modalidad_pago'] ?? '') === 'credito';
+        $cancelado  = $estadoActual === 'cancelado';
+        $liquidado  = $saldo <= 0.004;
+
+        if ($cancelado) {
+            $textoPago = '';
+        } elseif (! $esCredito) {
+            $textoPago = 'Pagado';
+        } else {
+            $textoPago = $liquidado ? 'Totalmente Pagado' : 'Saldo pendiente';
+        }
+
+        return [
+            'es_credito'      => $esCredito,
+            'modalidad_texto' => $esCredito ? 'A Crédito' : 'De Contado',
+            'total'           => round($total, 2),
+            'pago_inicial'    => round((float) ($p['pago_inicial'] ?? 0), 2),
+            'abonos_total'    => round((float) ($p['abonos_total'] ?? 0), 2),
+            'pagado'          => round(max(0.0, $total - $saldo), 2),
+            'saldo'           => round($saldo, 2),
+            'liquidado'       => $esCredito && $liquidado && ! $cancelado,
+            'estado_pago'     => $textoPago,
+            'puede_abonar'    => $esCredito && ($p['origen'] ?? '') === 'cliente' && ! $liquidado && ! $cancelado,
+        ];
     }
 
     // ─────────────────────────────────────────────
@@ -133,8 +175,14 @@ class PedidoClienteModel
      * Crea el pedido del cliente con estado inicial "pedido" (Pendiente).
      * Valida stock con bloqueo de filas para evitar sobreventa.
      */
-    public function crearPedidoDesdeCarrito(int $idCliente, array $carrito, ?string $fechaEntrega, ?string $horario): array
-    {
+    public function crearPedidoDesdeCarrito(
+        int $idCliente,
+        array $carrito,
+        ?string $fechaEntrega,
+        ?string $horario,
+        string $modalidad = 'contado',
+        float $pagoInicial = 0.0
+    ): array {
         $ids = array_map('intval', array_keys($carrito));
         if ($ids === []) {
             return ['success' => false, 'message' => 'Tu carrito está vacío.'];
@@ -193,11 +241,32 @@ class PedidoClienteModel
                 ];
             }
 
+            $total = round($total, 2);
+
+            // De contado: se asume el pago del 100 %. A crédito: el pago inicial puede ser $0.
+            if ($modalidad === 'credito') {
+                $pagoInicial = round($pagoInicial, 2);
+                if ($pagoInicial < 0 || $pagoInicial > $total) {
+                    $this->db->transRollback();
+
+                    return [
+                        'success' => false,
+                        'message' => 'El pago inicial debe estar entre $0.00 y el total del pedido ($' . number_format($total, 2) . ').',
+                    ];
+                }
+                $deuda = round($total - $pagoInicial, 2);
+            } else {
+                $modalidad   = 'contado';
+                $pagoInicial = $total;
+                $deuda       = 0.0;
+            }
+
             $this->db->table('pedido')->insert([
                 'fecha'                    => date('Y-m-d'),
-                'total'                    => round($total, 2),
-                'modalidad_pago'           => 'contado',
-                'deuda_restante'           => 0,
+                'total'                    => $total,
+                'modalidad_pago'           => $modalidad,
+                'deuda_restante'           => $deuda,
+                'pago_inicial'             => $pagoInicial,
                 'fecha_entrega'            => null,
                 'fecha_entrega_programada' => $fechaEntrega,
                 'horario_entrega'          => $horario,
@@ -237,10 +306,11 @@ class PedidoClienteModel
     private function baseListado(int $idCliente)
     {
         return $this->db->table('pedido p')
-            ->select('p.id_pedido, p.fecha, p.total, p.modalidad_pago, p.deuda_restante, p.en_espera, p.id_repartidor,
+            ->select('p.id_pedido, p.fecha, p.total, p.modalidad_pago, p.deuda_restante, p.pago_inicial, p.origen, p.en_espera, p.id_repartidor,
                       p.fecha_entrega_programada, p.horario_entrega,
                       r.nombre AS repartidor_nombre, r.ap_paterno AS repartidor_apellido,
-                      s.estado AS estado_actual, s.fecha AS estado_fecha')
+                      s.estado AS estado_actual, s.fecha AS estado_fecha,
+                      (SELECT COALESCE(SUM(a.monto), 0) FROM abonos a WHERE a.id_pedido = p.id_pedido) AS abonos_total', false)
             ->join('repartidor r', 'r.id_repartidor = p.id_repartidor', 'left')
             ->join(self::SUBQUERY_ULTIMO, 'latest.id_pedido2 = p.id_pedido', 'left')
             ->join('status s', 's.id_status = latest.max_id', 'left')
@@ -255,6 +325,9 @@ class PedidoClienteModel
         $p['repartidor'] = $nombre !== '' ? $nombre : null;
 
         $p['actualizado'] = ! empty($p['estado_fecha']) ? date('d/m/Y H:i', strtotime($p['estado_fecha'])) : '';
+
+        $p['pago']           = self::describirPago($p, $p['estado_actual'] ?? null);
+        $p['puede_cancelar'] = in_array($p['estado_actual'] ?? 'pedido', self::ESTADOS_CANCELABLES, true);
 
         return $p;
     }
@@ -312,12 +385,137 @@ class PedidoClienteModel
         foreach ($filas as $f) {
             $f = $this->decorar($f);
             $salida[$f['id_pedido']] = $f['estado'] + [
-                'repartidor'  => $f['repartidor'],
-                'actualizado' => $f['actualizado'],
+                'repartidor'     => $f['repartidor'],
+                'actualizado'    => $f['actualizado'],
+                'pago'           => $f['pago'],
+                'puede_cancelar' => $f['puede_cancelar'],
             ];
         }
 
         return $salida;
+    }
+
+    // ─────────────────────────────────────────────
+    //  ACCIONES DEL CLIENTE: CANCELAR Y ABONAR
+    // ─────────────────────────────────────────────
+
+    private function fallo(string $mensaje): array
+    {
+        $this->db->transRollback();
+
+        return ['success' => false, 'message' => $mensaje];
+    }
+
+    /** El cliente solo puede cancelar mientras el pedido está Pendiente o Aceptado. */
+    public function cancelarPedidoCliente(int $idCliente, int $idPedido): array
+    {
+        $this->db->transBegin();
+
+        try {
+            // Se bloquea la fila para que el administrador no lo envíe a la vez que se cancela.
+            $pedido = $this->db->query(
+                'SELECT id_pedido FROM pedido WHERE id_pedido = ? AND id_cliente1 = ? FOR UPDATE',
+                [$idPedido, $idCliente]
+            )->getRowArray();
+
+            if (! $pedido) {
+                return $this->fallo('El pedido no existe.');
+            }
+
+            $estado = $this->getEstadoActual($idPedido) ?? 'pedido';
+            if ($estado === 'cancelado') {
+                return $this->fallo('Este pedido ya estaba cancelado.');
+            }
+            if (! in_array($estado, self::ESTADOS_CANCELABLES, true)) {
+                return $this->fallo('Este pedido ya no se puede cancelar porque está en tránsito o fue entregado.');
+            }
+
+            $this->db->table('status')->insert([
+                'estado'     => 'cancelado',
+                'id_pedido2' => $idPedido,
+                'fecha'      => date('Y-m-d H:i:s'),
+            ]);
+
+            $this->db->transCommit();
+
+            return ['success' => true, 'message' => 'Tu pedido fue cancelado.'];
+        } catch (\Throwable $e) {
+            log_message('error', 'No se pudo cancelar el pedido del cliente: ' . $e->getMessage());
+
+            return $this->fallo('No pudimos cancelar tu pedido. Inténtalo de nuevo.');
+        }
+    }
+
+    /**
+     * Abono hecho por el propio cliente. Solo en sus pedidos a crédito creados desde la web.
+     * El pedido sigue siendo "A Crédito"; al llegar a $0 su estado de pago es "Totalmente Pagado".
+     */
+    public function registrarAbonoCliente(int $idCliente, int $idPedido, float $monto): array
+    {
+        $monto = round($monto, 2);
+        if ($monto <= 0) {
+            return ['success' => false, 'message' => 'Ingresa un monto mayor a $0.'];
+        }
+
+        $this->db->transBegin();
+
+        try {
+            $p = $this->db->query(
+                'SELECT * FROM pedido WHERE id_pedido = ? AND id_cliente1 = ? FOR UPDATE',
+                [$idPedido, $idCliente]
+            )->getRowArray();
+
+            if (! $p) {
+                return $this->fallo('El pedido no existe.');
+            }
+            if (($p['origen'] ?? 'admin') !== 'cliente') {
+                return $this->fallo('Los pagos de este pedido los registra la tienda.');
+            }
+            if ($p['modalidad_pago'] !== 'credito') {
+                return $this->fallo('Este pedido no es a crédito.');
+            }
+            if (($this->getEstadoActual($idPedido) ?? 'pedido') === 'cancelado') {
+                return $this->fallo('El pedido está cancelado.');
+            }
+
+            $deuda = round((float) $p['deuda_restante'], 2);
+            if ($deuda <= 0) {
+                return $this->fallo('Este pedido ya está totalmente pagado.');
+            }
+            if ($monto > $deuda + 0.001) {
+                return $this->fallo('El abono no puede superar el saldo pendiente ($' . number_format($deuda, 2) . ').');
+            }
+
+            $nuevaDeuda = round($deuda - $monto, 2);
+
+            $this->db->table('abonos')->insert([
+                'monto'          => $monto,
+                'fecha_abono'    => date('Y-m-d'),
+                'fecha_registro' => date('Y-m-d H:i:s'),
+                'id_pedido'      => $idPedido,
+            ]);
+            $this->db->table('pedido')->where('id_pedido', $idPedido)->update(['deuda_restante' => $nuevaDeuda]);
+
+            if (! $this->db->transStatus()) {
+                return $this->fallo('No se pudo registrar el abono.');
+            }
+            $this->db->transCommit();
+
+            $liquidado = $nuevaDeuda <= 0.004;
+
+            return [
+                'success'   => true,
+                'saldo'     => $nuevaDeuda,
+                'liquidado' => $liquidado,
+                'message'   => $liquidado
+                    ? '¡Abono registrado! Tu pedido quedó totalmente pagado.'
+                    : 'Abono registrado. Saldo pendiente: $' . number_format($nuevaDeuda, 2),
+            ];
+        } catch (\Throwable $e) {
+            log_message('error', 'No se pudo registrar el abono del cliente: ' . $e->getMessage());
+
+            return $this->fallo('No pudimos registrar tu abono. Inténtalo de nuevo.');
+        }
     }
 
     // ─────────────────────────────────────────────

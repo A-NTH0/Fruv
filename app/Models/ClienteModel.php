@@ -6,16 +6,15 @@ class ClienteModel extends Model
 {
     protected $table            = 'cliente';
     protected $primaryKey       = 'id_cliente';
-    protected $allowedFields    = ['nombre', 'ap_paterno', 'ap_materno', 'telefono', 'email', 'hash', 'baja', 'fecha_baja'];
+    protected $allowedFields    = ['nombre', 'ap_paterno', 'ap_materno', 'telefono', 'email', 'hash', 'baja', 'fecha_baja', 'preferencial_manual'];
 
-    // ── Reglas de cliente preferencial (RF-11 / RF-12) ──
-    // Cambiar aquí cuando el cliente defina el número de compras y el descuento.
-    public const UMBRAL_PREFERENCIAL    = 5;   // compras concluidas para ser preferencial
+   
+    public const UMBRAL_PREFERENCIAL    = 5;   // pedidos de contado concluidos para ser preferencial
     public const DESCUENTO_PREFERENCIAL = 10;  // % de descuento sugerido en el precio
 
     /**
-     * Subconsulta: compras concluidas de un cliente (pedidos cuyo último
-     * estado es entregado, crédito o pagado; los cancelados no cuentan).
+     * Subconsulta: pedidos de contado concluidos de un cliente (último estado entregado
+     * o pagado, sin saldo). Los de crédito y los cancelados no cuentan.
      */
     public static function sqlCompras(): string
     {
@@ -24,21 +23,30 @@ class ClienteModel extends Model
                       ON l.id_pedido2 = pe.id_pedido
                  JOIN status st ON st.id_status = l.max_id
                  WHERE pe.id_cliente1 = cliente.id_cliente
-                   AND st.estado IN ('entregado','credito','pagado')) AS compras";
+                   AND pe.modalidad_pago = 'contado'
+                   AND COALESCE(pe.deuda_restante, 0) <= 0
+                   AND st.estado IN ('entregado','pagado')) AS compras";
     }
 
-    public static function esPreferencial(int $compras): bool
+    /** @param int|string $manual valor de cliente.preferencial_manual */
+    public static function esPreferencial(int $compras, $manual = 0): bool
     {
-        return $compras >= self::UMBRAL_PREFERENCIAL;
+        return (int) $manual === 1 || $compras >= self::UMBRAL_PREFERENCIAL;
+    }
+
+    /** Ajuste manual del administrador. */
+    public function setPreferencialManual(int $idCliente, bool $valor): bool
+    {
+        return (bool) $this->update($idCliente, ['preferencial_manual' => $valor ? 1 : 0]);
     }
 
     /**
      * Catálogo mínimo para el formulario de pedidos (RNF-05): solo id, nombre,
-     * apellido y compras; sin teléfono ni dirección. Excluye clientes dados de baja.
+     * apellido, marca de preferencial y compras; sin teléfono ni dirección. Excluye clientes dados de baja.
      */
     public function getClientesParaPedido(): array
     {
-        return $this->select('cliente.id_cliente, cliente.nombre, cliente.ap_paterno, ' . self::sqlCompras(), false)
+        return $this->select('cliente.id_cliente, cliente.nombre, cliente.ap_paterno, cliente.preferencial_manual, ' . self::sqlCompras(), false)
                     ->where('cliente.baja', 0)
                     ->orderBy('cliente.nombre', 'ASC')
                     ->findAll();
@@ -70,7 +78,7 @@ class ClienteModel extends Model
 
     public function getClientesConDireccion(string $busqueda = ''): static
     {
-        $this->select('cliente.id_cliente, cliente.nombre, cliente.ap_paterno, cliente.ap_materno, cliente.telefono, cliente.email,
+        $this->select('cliente.id_cliente, cliente.nombre, cliente.ap_paterno, cliente.ap_materno, cliente.telefono, cliente.email, cliente.preferencial_manual,
                         direccion.calle, direccion.numero, direccion.colonia, direccion.municipio, direccion.estado,
                         ' . self::sqlCompras(), false)
              ->join('direccion', 'direccion.id_cliente = cliente.id_cliente', 'left')

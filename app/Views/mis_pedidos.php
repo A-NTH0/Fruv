@@ -43,11 +43,12 @@ $pedidoOk    = session()->getFlashdata('pedido_ok');
                 <?php foreach ($pedidos as $p): ?>
                     <?php $e = $p['estado']; $paso = (int) $e['paso']; ?>
                     <article class="pedido-card <?= $e['clave'] === 'cancelado' ? 'is-cancelado' : '' ?>"
-                             data-id="<?= (int) $p['id_pedido'] ?>" data-clave="<?= esc($e['clave']) ?>">
+                             data-id="<?= (int) $p['id_pedido'] ?>" data-clave="<?= esc($e['clave']) ?>"
+                             data-info="<?= esc(json_encode(['pago' => $p['pago'], 'puede_cancelar' => $p['puede_cancelar']], JSON_UNESCAPED_UNICODE), 'attr') ?>">
                         <div class="pedido-top">
                             <div>
                                 <h2>Pedido #<?= (int) $p['id_pedido'] ?></h2>
-                                <p><?= esc(date('d/m/Y', strtotime($p['fecha']))) ?> · <?= $p['modalidad_pago'] === 'credito' ? 'Crédito' : 'Contado' ?></p>
+                                <p><?= esc(date('d/m/Y', strtotime($p['fecha']))) ?> · <?= esc($p['pago']['modalidad_texto']) ?></p>
                             </div>
                             <div class="pedido-right">
                                 <span class="pedido-total">$<?= number_format((float) $p['total'], 2) ?></span>
@@ -66,6 +67,10 @@ $pedidoOk    = session()->getFlashdata('pedido_ok');
 
                         <p class="pedido-detalle js-detalle"><?= esc($e['detalle']) ?></p>
 
+                        <?php /* Pago y acciones (cancelar / abonar): las dibuja mis-pedidos.js y se sincronizan solas */ ?>
+                        <div class="pedido-pago js-pago"></div>
+                        <div class="pedido-acciones js-acciones"></div>
+
                         <div class="pedido-meta">
                             <span class="js-repartidor" <?= $p['repartidor'] ? '' : 'style="display:none"' ?>>
                                 🛵 Repartidor: <strong><?= esc($p['repartidor'] ?? '') ?></strong>
@@ -73,9 +78,6 @@ $pedidoOk    = session()->getFlashdata('pedido_ok');
                             <?php if ($fechaValida($p['fecha_entrega_programada'])): ?>
                                 <span>📅 Entrega deseada: <?= esc(date('d/m/Y', strtotime($p['fecha_entrega_programada']))) ?>
                                     <?= ! empty($p['horario_entrega']) && $p['horario_entrega'] !== '00:00:00' ? esc(substr($p['horario_entrega'], 0, 5)) : '' ?></span>
-                            <?php endif; ?>
-                            <?php if (($p['estado_actual'] ?? '') === 'credito' && (float) $p['deuda_restante'] > 0): ?>
-                                <span>💰 Saldo pendiente: <strong>$<?= number_format((float) $p['deuda_restante'], 2) ?></strong></span>
                             <?php endif; ?>
                             <span class="js-actualizado muted"><?= $p['actualizado'] ? 'Actualizado: ' . esc($p['actualizado']) : '' ?></span>
                         </div>

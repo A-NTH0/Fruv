@@ -29,6 +29,24 @@
                 <div class="sum-row"><span>Productos</span><strong id="sum-cuenta">0</strong></div>
                 <div class="sum-row sum-total"><span>Total</span><strong id="sum-total">$0.00</strong></div>
 
+                <fieldset class="sum-field pago-fieldset">
+                    <legend>Método de pago</legend>
+                    <label class="pago-opt">
+                        <input type="radio" name="modalidad_pago" value="contado" checked>
+                        <span>De contado <small>(pagas el 100 % del total)</small></span>
+                    </label>
+                    <label class="pago-opt">
+                        <input type="radio" name="modalidad_pago" value="credito">
+                        <span>A crédito</span>
+                    </label>
+                </fieldset>
+
+                <div class="sum-field" id="pago-inicial-box" hidden>
+                    <label for="pago_inicial">Pago inicial / enganche <small>(puede ser $0)</small></label>
+                    <input type="number" id="pago_inicial" min="0" step="0.01" value="0" placeholder="0.00">
+                    <p class="pago-saldo">Saldo pendiente: <strong id="pago-saldo">$0.00</strong></p>
+                </div>
+
                 <div class="sum-field">
                     <label for="fecha_entrega">Fecha de entrega deseada <small>(opcional)</small></label>
                     <input type="date" id="fecha_entrega" min="<?= esc($hoy) ?>">

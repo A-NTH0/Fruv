@@ -123,6 +123,26 @@ class ClientesController extends BaseController
         return redirect()->to(base_url('clientes'));
     }
 
+    /** Ajuste manual: el administrador marca o quita a un cliente como preferencial. */
+    public function preferencial()
+    {
+        $id    = (int) $this->request->getPost('id_cliente');
+        $valor = (int) $this->request->getPost('valor') === 1;
+
+        $model   = new ClienteModel();
+        $cliente = $id > 0 ? $model->find($id) : null;
+        if (! $cliente || (int) $cliente['baja'] === 1) {
+            return $this->response->setJSON(['success' => false, 'message' => 'El cliente no existe o está dado de baja.']);
+        }
+
+        $model->setPreferencialManual($id, $valor);
+
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => $valor ? 'Cliente marcado como preferencial.' : 'Se quitó la marca manual de preferencial.',
+        ]);
+    }
+
     public function darDeBaja()
     {
         $id = (int) $this->request->getPost('id_cliente');

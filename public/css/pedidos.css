@@ -136,3 +136,6 @@ body { background: #F4F6FA; overflow-x: hidden; margin: 0; }
 .autocomplete-item:hover, .autocomplete-item.active { background: #fff1f2; color: #e11d48; }
 .autocomplete-item:last-child { border-bottom: none; }
 .autocomplete-empty { padding: 0.5rem 0.75rem; font-size: 0.8125rem; color: #9ca3af; font-style: italic; }
+.tag-contado { background: #d1fae5; color: #047857; }
+.tag-pagado { background: #dcfce7; color: #15803d; }
+.tp-line.pago { color: #475569; font-weight: 600; }

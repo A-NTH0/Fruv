@@ -251,6 +251,13 @@ $kpis = [
                     <span id="total-modal" class="text-xl font-black text-rose-600">$0.00</span>
                 </div>
 
+                <!-- Pago inicial: solo si la modalidad es crédito (desde $0). De contado se toma el total como pagado -->
+                <div id="np-pago-box" class="hidden bg-purple-50 p-3 rounded-lg mb-4">
+                    <label class="campo-label" for="np-pago-inicial">Pago inicial / enganche <span class="text-gray-400 font-normal">(puede ser $0)</span></label>
+                    <input type="number" id="np-pago-inicial" min="0" step="0.01" value="0" class="campo" placeholder="0.00">
+                    <p class="text-xs text-purple-700 mt-1.5">Saldo pendiente: <strong id="np-saldo">$0.00</strong></p>
+                </div>
+
                 <div class="flex gap-3">
                     <button onclick="guardarNuevoPedido()" class="btn-modal bg-rose-500 hover:bg-rose-600 text-white">💾 Guardar pedido</button>
                     <button onclick="cerrarModalNuevoPedido()" class="btn-modal bg-gray-200 hover:bg-gray-300 text-gray-700">Cancelar</button>
@@ -266,8 +273,8 @@ $kpis = [
 
         const CLIENTES_DATA = <?= json_encode(array_map(fn($c) => [
             'id'           => $c['id_cliente'],
-            'label'        => trim($c['nombre'] . ' ' . $c['ap_paterno']) . (\App\Models\ClienteModel::esPreferencial((int) $c['compras']) ? ' ⭐ Preferencial' : ''),
-            'preferencial' => \App\Models\ClienteModel::esPreferencial((int) $c['compras']),
+            'label'        => trim($c['nombre'] . ' ' . $c['ap_paterno']) . (\App\Models\ClienteModel::esPreferencial((int) $c['compras'], $c['preferencial_manual'] ?? 0) ? ' ⭐ Preferencial' : ''),
+            'preferencial' => \App\Models\ClienteModel::esPreferencial((int) $c['compras'], $c['preferencial_manual'] ?? 0),
         ], $clientes)) ?>;
 
         const DESCUENTO_PREFERENCIAL = <?= \App\Models\ClienteModel::DESCUENTO_PREFERENCIAL ?>;
@@ -290,7 +297,6 @@ $kpis = [
         const TOTALES_ESTADO    = <?= json_encode($totals, $flagsJson) ?: '{}' ?>;
     </script>
 
-    <!-- Importante: pedidos.js primero; pedidos-flujo.js después (sobrescribe funciones) -->
     <script src="<?= base_url('js/pedidos.js') ?>"></script>
     <script src="<?= base_url('js/pedidos-flujo.js') ?>"></script>
 </body>

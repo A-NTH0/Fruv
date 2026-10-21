@@ -8,7 +8,7 @@ class PedidoModel extends Model
 {
     protected $table         = 'pedido';
     protected $primaryKey    = 'id_pedido';
-    protected $allowedFields = ['fecha', 'id_cliente1', 'id_repartidor', 'modalidad_pago', 'deuda_restante', 'fecha_entrega', 'fecha_entrega_programada', 'horario_entrega', 'imagen_url', 'total'];
+    protected $allowedFields = ['fecha', 'id_cliente1', 'id_repartidor', 'modalidad_pago', 'deuda_restante', 'fecha_entrega', 'fecha_entrega_programada', 'horario_entrega', 'imagen_url', 'total', 'pago_inicial'];
     protected $useTimestamps  = false;
     protected $useSoftDeletes = false;
 
@@ -28,6 +28,24 @@ class PedidoModel extends Model
         return $result ? $result['estado'] : 'pedido';
     }
 
+    /** Solo se puede cancelar antes de "En tránsito" (Pendiente o Aceptado). */
+    public function puedeCancelar($idPedido): bool
+    {
+        return in_array($this->getEstadoActual($idPedido), PedidoClienteModel::ESTADOS_CANCELABLES, true);
+    }
+
+    /** Suma de los abonos registrados (sin incluir el pago inicial, que vive en pedido.pago_inicial). */
+    public function getAbonado($idPedido): float
+    {
+        $fila = \Config\Database::connect()->table('abonos')
+            ->selectSum('monto', 'total')
+            ->where('id_pedido', $idPedido)
+            ->get()
+            ->getRowArray();
+
+        return round((float) ($fila['total'] ?? 0), 2);
+    }
+
     public function getHistorialEstados($idPedido)
     {
         $db = \Config\Database::connect();
@@ -42,6 +60,14 @@ class PedidoModel extends Model
     {
         $db = \Config\Database::connect();
         $db->transStart();
+
+        // Bloquea el pedido: evita cancelar y enviar al mismo tiempo desde cliente y administrador.
+        $db->query('SELECT id_pedido FROM pedido WHERE id_pedido = ? FOR UPDATE', [$idPedido]);
+
+        if ($nuevoEstado === 'cancelado' && ! $this->puedeCancelar($idPedido)) {
+            $db->transComplete();
+            return false;
+        }
 
         if ($repartidorId) {
             $this->update($idPedido, ['id_repartidor' => $repartidorId]);
@@ -477,7 +503,9 @@ class PedidoModel extends Model
         $nuevaDeuda = $pedido['deuda_restante'] - $monto;
         $this->update($idPedido, ['deuda_restante' => max(0, $nuevaDeuda)]);
 
-        if ($nuevaDeuda <= 0) {
+        // Pedidos del administrador: al liquidarse pasan a "Pagados" (como hasta ahora).
+        // Pedidos hechos por el cliente: siguen como "A Crédito" con estado de pago "Totalmente Pagado".
+        if ($nuevaDeuda <= 0 && ($pedido['origen'] ?? 'admin') !== 'cliente') {
             $this->cambiarEstado($idPedido, 'pagado');
         }
 
