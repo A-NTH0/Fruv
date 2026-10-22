@@ -112,24 +112,19 @@ function crearAutocomplete(inputId, hiddenId, listaId, datos, onSelect, mensajeV
 }
 
 function scrollToColumn(estado) {
-    const col = document.querySelector(`.kanban-column[data-estado="${estado}"]`);
-    if (col) col.scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
+    const panel = document.querySelector(`.kanban-column[data-estado="${estado}"]`);
+    if (!panel) return;
 
-function initKanbanScroll() {
-    const wrapper  = document.getElementById('kanbanWrapper');
-    const leftBtn  = document.getElementById('scrollLeftBtn');
-    const rightBtn = document.getElementById('scrollRightBtn');
-    if (!wrapper) return;
-    const update = () => {
-        const max = wrapper.scrollWidth - wrapper.clientWidth;
-        leftBtn.classList.toggle('disabled', wrapper.scrollLeft <= 5);
-        rightBtn.classList.toggle('disabled', wrapper.scrollLeft >= max - 5);
-    };
-    leftBtn.onclick  = () => { wrapper.scrollBy({ left: -340, behavior: 'smooth' }); setTimeout(update, 200); };
-    rightBtn.onclick = () => { wrapper.scrollBy({ left:  340, behavior: 'smooth' }); setTimeout(update, 200); };
-    wrapper.addEventListener('scroll', update);
-    update();
+    document.querySelectorAll('.kanban-column').forEach(columna => {
+        const activa = columna === panel;
+        columna.hidden = !activa;
+        columna.classList.toggle('is-active', activa);
+    });
+    document.querySelectorAll('.kpi-chip[role="tab"]').forEach(tab => {
+        const activa = tab.getAttribute('aria-controls') === panel.id;
+        tab.setAttribute('aria-selected', String(activa));
+        tab.classList.toggle('is-active', activa);
+    });
 }
 
 async function cambiarPaginaColumna(estado, direccion) {
@@ -138,7 +133,7 @@ async function cambiarPaginaColumna(estado, direccion) {
     else if (direccion === 'prev') { if (nuevaPagina <= 1) return; nuevaPagina--; }
 
     const columna    = document.querySelector(`.kanban-column[data-estado="${estado}"]`);
-    const contenedor = columna.querySelector('.overflow-y-auto');
+    const contenedor = columna.querySelector('.col-body');
     contenedor.innerHTML = `<div class="flex justify-center items-center py-10"><span class="text-gray-500 text-sm">Cargando...</span></div>`;
 
     try {
@@ -146,7 +141,7 @@ async function cambiarPaginaColumna(estado, direccion) {
         const data = await res.json();
         if (data.success) {
             paginaActualPorEstado[estado] = nuevaPagina;
-            actualizarColumnaKanban(estado, data.pedidos, nuevaPagina, data.totalPages);
+            actualizarColumnaKanban(estado, data.pedidos, nuevaPagina, data.totalPages, data.total);
             if (data.stats) actualizarStatsUI(data.stats);
         } else throw new Error(data.message);
     } catch (e) {
@@ -164,12 +159,24 @@ function actualizarStatsUI(stats) {
     document.querySelectorAll('.stat-value').forEach(el => {
         if (map[el.dataset.stat] !== undefined) el.textContent = map[el.dataset.stat];
     });
+    const porEstado = {
+        pedido: stats.nuevo, confirmado: stats.confirmado, en_transito: stats.transito,
+        entregado: stats.completado, credito: stats.credito, pagado: stats.pagado, cancelado: stats.cancelado,
+    };
+    Object.entries(porEstado).forEach(([estado, total]) => {
+        const conteo = document.querySelector(`.kanban-column[data-estado="${estado}"] .count-pedidos`);
+        if (conteo && total !== undefined) conteo.textContent = `${total} pedido${Number(total) === 1 ? '' : 's'}`;
+    });
+    const atencion = document.querySelector('[data-summary="atencion"]');
+    const transito = document.querySelector('[data-summary="transito"]');
+    if (atencion) atencion.textContent = (Number(stats.nuevo) || 0) + (Number(stats.confirmado) || 0);
+    if (transito) transito.textContent = Number(stats.transito) || 0;
 }
 
 function actualizarColumnaKanban(estado, pedidos, paginaActual, totalPages) {
     const columna    = document.querySelector(`.kanban-column[data-estado="${estado}"]`);
     if (!columna) return;
-    const contenedor = columna.querySelector('.overflow-y-auto');
+    const contenedor = columna.querySelector('.col-body');
     contenedor.innerHTML = '';
     if (!pedidos || !pedidos.length) {
         contenedor.innerHTML = `<div class="text-center py-10 opacity-60"><p class="text-gray-400 text-xs">No hay pedidos en esta página</p></div>`;
@@ -1058,7 +1065,6 @@ async function guardarNuevoPedido() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    initKanbanScroll();
     inicializarBuscador();
     lucide.createIcons();
 

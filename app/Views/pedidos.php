@@ -3,13 +3,13 @@ $flagsJson = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_
 
 // Título, icono y color de cada columna (el controlador no se modifica).
 $meta = [
-    'pedido'      => ['Pendientes',  'inbox',        'rose'],
-    'confirmado'  => ['Aceptados',   'check-circle', 'blue'],
-    'en_transito' => ['En tránsito', 'truck',        'amber'],
-    'entregado'   => ['Entregados',  'award',        'emerald'],
-    'cancelado'   => ['Cancelados',  'x-circle',     'slate'],
-    'credito'     => ['A crédito',   'credit-card',  'purple'],
-    'pagado'      => ['Pagados',     'check-circle', 'green'],
+    'pedido'      => ['Pendientes',  'inbox',        'rose',    'Pedidos que necesitan revisión y aceptación.'],
+    'confirmado'  => ['Aceptados',   'check-circle', 'blue',    'Pedidos aceptados que esperan organización o salida.'],
+    'en_transito' => ['En tránsito', 'truck',        'amber',   'Pedidos que están con el repartidor.'],
+    'entregado'   => ['Entregados',  'award',        'emerald', 'Pedidos completados.'],
+    'cancelado'   => ['Cancelados',  'x-circle',     'slate',   'Pedidos que ya no continúan en el flujo.'],
+    'credito'     => ['A crédito',   'credit-card',  'purple',  'Pedidos con saldo pendiente de cobro.'],
+    'pagado'      => ['Pagados',     'check-circle', 'green',   'Pedidos liquidados.'],
 ];
 
 $kpis = [
@@ -32,7 +32,7 @@ $kpis = [
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <link rel="stylesheet" href="<?= base_url('css/pedidos.css') ?>">
+    <link rel="stylesheet" href="<?= base_url('css/pedidos.css') ?>?v=<?= filemtime(FCPATH . 'css/pedidos.css') ?>">
 </head>
 <body>
 
@@ -41,22 +41,36 @@ $kpis = [
     <main class="main-content">
         <div class="ped-wrap">
 
-            <!-- Encabezado compacto: título + buscador + acción principal -->
             <header class="ped-header">
-                <div class="ped-title">
+                <div class="ped-hero-copy">
+                    <span class="ped-kicker"><i data-lucide="activity" aria-hidden="true"></i> CENTRO DE OPERACIONES</span>
                     <h1>Seguimiento de pedidos</h1>
-                    <p>Acepta, organiza y entrega los pedidos en un solo lugar</p>
+                    <p>Visualiza qué necesita atención, organiza las entregas y consulta cada pedido.</p>
                 </div>
 
                 <div class="ped-tools">
                     <div class="search-box">
                         <i data-lucide="search" class="w-4 h-4"></i>
-                        <input type="text" id="buscador-pedidos" placeholder="Buscar por nombre de cliente">
-                        <button id="btn-limpiar-busqueda" onclick="limpiarBusqueda()" class="hidden" title="Limpiar">✕</button>
+                        <input type="search" id="buscador-pedidos" placeholder="Cliente, producto o número" aria-label="Buscar pedidos por cliente, producto o número">
+                        <button id="btn-limpiar-busqueda" onclick="limpiarBusqueda()" class="hidden" title="Limpiar búsqueda" aria-label="Limpiar búsqueda">✕</button>
                     </div>
-                    <button onclick="abrirModalNuevoPedido()" class="btn-primary btn-nuevo">
+                    <button type="button" onclick="abrirModalNuevoPedido()" class="btn-primary btn-nuevo">
                         <i data-lucide="plus-circle" class="w-4 h-4"></i> Nuevo pedido
                     </button>
+                </div>
+                <div class="ped-hero-summary" aria-label="Resumen de pedidos activos">
+                    <div>
+                        <span>Requieren atención</span>
+                        <strong data-summary="atencion"><?= (int) ($stats['nuevo'] ?? 0) + (int) ($stats['confirmado'] ?? 0) ?></strong>
+                        <small>pendientes y aceptados</small>
+                    </div>
+                    <div class="ped-summary-divider"></div>
+                    <div>
+                        <span>En reparto</span>
+                        <strong data-summary="transito"><?= (int) ($stats['transito'] ?? 0) ?></strong>
+                        <small>en tránsito</small>
+                    </div>
+                    <div class="ped-hero-icon"><i data-lucide="package-check" aria-hidden="true"></i></div>
                 </div>
             </header>
 
@@ -65,31 +79,44 @@ $kpis = [
                 <div id="lista-resultado-busqueda"></div>
             </div>
 
-            <!-- KPIs como chips -->
-            <div class="stats-grid">
+            <div class="workflow-label">
+                <div>
+                    <span class="workflow-step">FLUJO DE PEDIDOS</span>
+                    <h2>Pedidos por estado</h2>
+                </div>
+                <p>Selecciona una etapa para ver sus pedidos y acciones.</p>
+            </div>
+            <nav class="stats-grid" role="tablist" aria-label="Filtrar pedidos por estado">
                 <?php foreach ($kpis as [$col, $stat, $label, $color]): ?>
-                    <button type="button" class="kpi-chip kpi-<?= $color ?>" onclick="scrollToColumn('<?= $col ?>')">
+                    <button type="button" role="tab" aria-controls="panel-pedidos-<?= $col ?>"
+                            aria-selected="<?= $col === 'pedido' ? 'true' : 'false' ?>"
+                            class="kpi-chip kpi-<?= $color ?><?= $col === 'pedido' ? ' is-active' : '' ?>"
+                            onclick="scrollToColumn('<?= $col ?>')">
                         <span class="kpi-dot"></span>
                         <span class="kpi-label"><?= $label ?></span>
                         <span class="value stat-value" data-stat="<?= $stat ?>"><?= $stats[$stat] ?? 0 ?></span>
                     </button>
                 <?php endforeach; ?>
-            </div>
+            </nav>
 
-            <!-- Tablero -->
             <div class="kanban-scroll-container">
-                <button id="scrollLeftBtn" class="scroll-btn"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
                 <div class="kanban-board-wrapper" id="kanbanWrapper">
                     <div class="kanban-board" id="kanban-board">
                         <?php foreach ($columnas as $key => $col): ?>
-                            <?php [$titulo, $icono, $color] = $meta[$key] ?? [$col['titulo'], $col['icon'], 'slate']; ?>
-                            <section class="kanban-column col-<?= $key ?>" data-estado="<?= $key ?>">
+                            <?php [$titulo, $icono, $color, $descripcion] = $meta[$key] ?? [$col['titulo'], $col['icon'], 'slate', 'Pedidos de esta etapa.']; ?>
+                            <section id="panel-pedidos-<?= $key ?>"
+                                     class="kanban-column col-<?= $key ?><?= $key === 'pedido' ? ' is-active' : '' ?>"
+                                     data-estado="<?= $key ?>" role="tabpanel" aria-label="<?= esc($titulo) ?>"
+                                     <?= $key === 'pedido' ? '' : 'hidden' ?>>
                                 <div class="col-head">
                                     <div class="col-title">
                                         <i data-lucide="<?= $icono ?>" class="w-4 h-4"></i>
-                                        <h2><?= $titulo ?></h2>
+                                        <div>
+                                            <h2><?= $titulo ?></h2>
+                                            <p class="col-description"><?= esc($descripcion) ?></p>
+                                        </div>
                                     </div>
-                                    <span class="count-pedidos" data-total="<?= $totals[$key] ?? 0 ?>"><?= $totals[$key] ?? 0 ?></span>
+                                    <span class="count-pedidos" data-total="<?= $totals[$key] ?? 0 ?>"><?= $totals[$key] ?? 0 ?> pedidos</span>
                                 </div>
 
                                 <div class="col-body overflow-y-auto" data-columna="<?= $key ?>"></div>
@@ -106,7 +133,6 @@ $kpis = [
                         <?php endforeach; ?>
                     </div>
                 </div>
-                <button id="scrollRightBtn" class="scroll-btn"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
             </div>
 
         </div>
@@ -297,7 +323,7 @@ $kpis = [
         const TOTALES_ESTADO    = <?= json_encode($totals, $flagsJson) ?: '{}' ?>;
     </script>
 
-    <script src="<?= base_url('js/pedidos.js') ?>"></script>
-    <script src="<?= base_url('js/pedidos-flujo.js') ?>"></script>
+    <script src="<?= base_url('js/pedidos.js') ?>?v=<?= filemtime(FCPATH . 'js/pedidos.js') ?>"></script>
+    <script src="<?= base_url('js/pedidos-flujo.js') ?>?v=<?= filemtime(FCPATH . 'js/pedidos-flujo.js') ?>"></script>
 </body>
 </html>

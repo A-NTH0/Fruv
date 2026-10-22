@@ -40,10 +40,25 @@ class ProductosController extends BaseController
     public function guardar()
     {
         $model  = new ProductoModel();
+        $codigo = trim((string) $this->request->getPost('codigo'));
         $nombre = trim($this->request->getPost('nombre'));
 
+        if (! $this->validate(['codigo' => 'required|max_length[50]'])) {
+            return redirect()->back()->withInput()
+                ->with('error', implode(' ', $this->validator->getErrors()))
+                ->with('modalProducto', 'nuevo');
+        }
+
+        if ($model->existeCodigo($codigo)) {
+            return redirect()->back()->withInput()
+                ->with('error', 'Ya existe un producto con el código: ' . $codigo)
+                ->with('modalProducto', 'nuevo');
+        }
+
         if ($model->existeProducto($nombre)) {
-            return redirect()->back()->withInput()->with('error', 'Ya existe un producto con el nombre: ' . $nombre);
+            return redirect()->back()->withInput()
+                ->with('error', 'Ya existe un producto con el nombre: ' . $nombre)
+                ->with('modalProducto', 'nuevo');
         }
 
         $archivo      = $this->request->getFile('imagen_file');
@@ -57,6 +72,7 @@ class ProductosController extends BaseController
         $precio = (float) ($this->request->getPost('precio') ?: 0);
 
         $model->guardarProducto([
+            'codigo'       => $codigo,
             'nombre'       => $nombre,
             'descripcion'  => $this->request->getPost('descripcion'),
             'categoria'    => $this->request->getPost('categoria'),
@@ -74,13 +90,35 @@ class ProductosController extends BaseController
     {
         $id     = (int) $this->request->getPost('id_producto');
         $model  = new ProductoModel();
+        $codigo = trim((string) $this->request->getPost('codigo'));
         $nombre = trim($this->request->getPost('nombre'));
 
+        if ($id < 1 || ! $this->validate(['codigo' => 'required|max_length[50]'])) {
+            $error = $id < 1
+                ? 'El producto seleccionado no es válido.'
+                : implode(' ', $this->validator->getErrors());
+
+            return redirect()->back()->withInput()
+                ->with('error', $error)
+                ->with('modalProducto', 'editar');
+        }
+
+        if ($model->existeCodigo($codigo, $id)) {
+            return redirect()->back()->withInput()
+                ->with('error', 'Ya existe otro producto con el código: ' . $codigo)
+                ->with('modalProducto', 'editar');
+        }
+
         if ($model->existeProducto($nombre, $id)) {
-            return redirect()->back()->withInput()->with('error', 'Ya existe otro producto con el nombre: ' . $nombre);
+            return redirect()->back()->withInput()
+                ->with('error', 'Ya existe otro producto con el nombre: ' . $nombre)
+                ->with('modalProducto', 'editar');
         }
 
         $producto     = $model->obtenerProductoPorId($id);
+        if ($producto === null) {
+            return redirect()->to(base_url('productos'))->with('error', 'El producto ya no existe.');
+        }
         $nombreImagen = $producto['imagen'] ?? 'default.jpg';
 
         $archivo = $this->request->getFile('imagen_file');
@@ -99,6 +137,7 @@ class ProductosController extends BaseController
         $precio = (float) ($this->request->getPost('precio') ?: 0);
 
         $model->actualizarProducto($id, [
+            'codigo'       => $codigo,
             'nombre'       => $nombre,
             'descripcion'  => $this->request->getPost('descripcion'),
             'categoria'    => $this->request->getPost('categoria'),

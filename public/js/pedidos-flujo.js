@@ -25,22 +25,22 @@ async function postForm(ruta, datos) {
 function botonesTarjeta(p, estado, enEspera) {
     const id = p.id_pedido;
     if (estado === 'pedido') {
-        return `<button class="btn-mini btn-ok" onclick="aceptarPedido(${id})">✅ Aceptar pedido</button>
-                <button class="btn-mini btn-wait" onclick="ponerPendiente(${id}, ${enEspera ? 0 : 1})">${enEspera ? '▶ Reactivar' : '⏸ Pendiente'}</button>
-                <button class="btn-mini btn-cancel" onclick="confirmarAccion(${id},'cancelado')">❌ Cancelar</button>`;
+        return `<button class="btn-mini btn-ok order-primary-action" onclick="aceptarPedido(${id})"><i data-lucide="check"></i> Aceptar pedido</button>
+                <button class="btn-mini btn-wait" onclick="ponerPendiente(${id}, ${enEspera ? 0 : 1})"><i data-lucide="${enEspera ? 'play' : 'pause'}"></i> ${enEspera ? 'Reactivar' : 'Poner en espera'}</button>
+                <button class="btn-mini btn-cancel" onclick="confirmarAccion(${id},'cancelado')">Cancelar</button>`;
     }
     if (estado === 'confirmado') {
-        return `<button class="btn-mini btn-rep" onclick="asignarRepartidor(${id})">🛵 ${p.id_repartidor ? 'Cambiar repartidor' : 'Asignar repartidor'}</button>
-                <button class="btn-mini btn-send" onclick="confirmarAccion(${id},'en_transito')">🚚 Enviar</button>
-                <button class="btn-mini btn-cancel" onclick="confirmarAccion(${id},'cancelado')">❌ Cancelar</button>`;
+        return `<button class="btn-mini btn-rep" onclick="asignarRepartidor(${id})"><i data-lucide="user-round"></i> ${p.id_repartidor ? 'Cambiar repartidor' : 'Asignar repartidor'}</button>
+                <button class="btn-mini btn-send order-primary-action" onclick="confirmarAccion(${id},'en_transito')"><i data-lucide="truck"></i> Iniciar entrega</button>
+                <button class="btn-mini btn-cancel" onclick="confirmarAccion(${id},'cancelado')">Cancelar</button>`;
     }
     if (estado === 'en_transito') {
         const credito = p.modalidad_pago === 'credito';
         // Desde "En tránsito" ya NO se puede cancelar el pedido.
-        return `<button class="btn-mini btn-ok" onclick="confirmarAccion(${id},'entregado')">${credito ? '📦 Entregar y cobrar' : '📦 Entregado'}</button>`;
+        return `<button class="btn-mini btn-ok order-primary-action" onclick="confirmarAccion(${id},'entregado')"><i data-lucide="package-check"></i> ${credito ? 'Confirmar entrega y cobro' : 'Confirmar entrega'}</button>`;
     }
     if (estado === 'credito' && parseFloat(p.deuda_restante) > 0) {
-        return `<button class="btn-mini btn-abono" onclick="abrirModalAbono(${id},${p.deuda_restante})">💰 Registrar abono</button>`;
+        return `<button class="btn-mini btn-abono order-primary-action" onclick="abrirModalAbono(${id},${p.deuda_restante})"><i data-lucide="circle-dollar-sign"></i> Registrar abono</button>`;
     }
     return '';
 }
@@ -60,9 +60,15 @@ function crearTarjetaPedido(p, estado) {
     div.dataset.repartidor   = repNombre.toLowerCase();
     div.dataset.repartidorId = p.id_repartidor || '';
 
+    const estadoTitulos = {
+        pedido: 'Pendiente', confirmado: 'Aceptado', en_transito: 'En tránsito',
+        entregado: 'Entregado', credito: 'Saldo pendiente', pagado: 'Pagado', cancelado: 'Cancelado',
+    };
     const tags = [];
-    if (p.origen === 'cliente')           tags.push('<span class="tag tag-web">Cliente web</span>');
-    if (enEspera)                          tags.push('<span class="tag tag-espera">En espera</span>');
+    tags.push(p.origen === 'cliente'
+        ? '<span class="tag tag-web">Pedido del cliente</span>'
+        : '<span class="tag tag-admin">Registrado por tienda</span>');
+    if (enEspera) tags.push('<span class="tag tag-espera">En espera</span>');
     tags.push(p.modalidad_pago === 'credito'
         ? '<span class="tag tag-credito">A Crédito</span>'
         : '<span class="tag tag-contado">De Contado</span>');
@@ -81,41 +87,62 @@ function crearTarjetaPedido(p, estado) {
                      <div class="tp-line saldo">Saldo: $${saldo.toFixed(2)}</div>`;
     }
 
-    const chips = productos.slice(0, 3)
-        .map(x => `<span class="chip-prod">${escHtml(x.nombre_producto)} ×${cantidadTxt(x.cantidad)}</span>`).join('');
-    const mas = productos.length > 3 ? `<span class="chip-mas">+${productos.length - 3} más</span>` : '';
+    const productosHtml = productos.slice(0, 3)
+        .map(x => `<li><span>${escHtml(x.nombre_producto)}</span><strong>×${cantidadTxt(x.cantidad)} ${escHtml(x.unidad_venta || '')}</strong></li>`).join('');
+    const masProductos = productos.length > 3
+        ? `<p class="order-more-items">y ${productos.length - 3} producto${productos.length - 3 === 1 ? '' : 's'} más</p>` : '';
 
     const entrega = fechaValida(p.fecha_entrega_programada)
-        ? `<div class="tp-line"><i data-lucide="calendar" class="w-3 h-3"></i><span>${escHtml(p.fecha_entrega_programada)}${p.horario_entrega && p.horario_entrega !== '00:00:00' ? ' · ' + escHtml(String(p.horario_entrega).slice(0, 5)) : ''}</span></div>`
+        ? `<div class="order-info"><i data-lucide="calendar-days"></i><span><small>Entrega programada</small><strong>${escHtml(p.fecha_entrega_programada)}${p.horario_entrega && p.horario_entrega !== '00:00:00' ? ' · ' + escHtml(String(p.horario_entrega).slice(0, 5)) : ''}</strong></span></div>`
+        : `<div class="order-info"><i data-lucide="calendar-days"></i><span><small>Pedido registrado</small><strong>${escHtml(p.fecha || 'Fecha no disponible')}</strong></span></div>`;
+    const telefono = p.cliente_telefono
+        ? `<span class="order-customer-phone"><i data-lucide="phone"></i>${escHtml(p.cliente_telefono)}</span>`
         : '';
+    const repartidor = repNombre
+        ? `<div class="order-info"><i data-lucide="bike"></i><span><small>Repartidor</small><strong>${escHtml(repNombre)}</strong></span></div>`
+        : `<div class="order-info"><i data-lucide="bike"></i><span><small>Repartidor</small><strong>${estado === 'confirmado' ? 'Pendiente de asignar' : 'Sin asignar'}</strong></span></div>`;
+    const inicial = escHtml(nombre.trim().charAt(0).toUpperCase() || '?');
 
     div.innerHTML = `
-        <div class="tp-head">
-            <div>
-                <h3 class="tp-name cliente-nombre">${escHtml(nombre)}</h3>
-                <div class="tp-meta"><span>#${id}</span>${tags.join('')}</div>
+        <div class="order-card-top">
+            <div class="order-id-group">
+                <span class="order-id">Pedido #${id}</span>
+                <span class="order-date">${escHtml(p.fecha || '')}</span>
             </div>
-            <span class="tp-total text-xs font-black">$${parseFloat(p.total || 0).toFixed(2)}</span>
+            <span class="order-status status-${escHtml(estado)}"><i data-lucide="circle"></i>${escHtml(estadoTitulos[estado] || estado)}</span>
         </div>
-        <div class="tp-prods productos-lista">${chips || '<span class="text-gray-300 italic">Sin productos</span>'}${mas}</div>
-        ${repNombre ? `<div class="tp-line"><i data-lucide="user" class="w-3 h-3"></i><span>${escHtml(repNombre)}</span></div>` : ''}
-        ${entrega}
-        ${lineaPago}
-        <div class="tp-foot">
+        <div class="order-customer">
+            <span class="order-avatar">${inicial}</span>
+            <div class="order-customer-main">
+                <h3 class="cliente-nombre">${escHtml(nombre || 'Cliente sin nombre')}</h3>
+                <div class="order-tags">${tags.join('')}</div>
+            </div>
+            <strong class="tp-total">$${(parseFloat(p.total) || 0).toFixed(2)}</strong>
+        </div>
+        ${telefono}
+        <section class="order-items">
+            <div class="order-section-title"><span>Productos</span><span>${productos.length} artículo${productos.length === 1 ? '' : 's'}</span></div>
+            ${productos.length
+                ? `<ul class="productos-lista">${productosHtml}</ul>${masProductos}`
+                : '<p class="order-empty-items">No hay productos registrados.</p>'}
+        </section>
+        <div class="order-info-grid">${entrega}${repartidor}</div>
+        ${lineaPago ? `<div class="order-payment">${lineaPago}</div>` : ''}
+        <div class="order-card-actions">
             <div class="tp-actions">${botonesTarjeta(p, estado, enEspera)}</div>
             <div class="tp-icons">
-                <button class="icon-btn icon-edit" onclick="editarPedido(${id})" title="Editar"><i data-lucide="edit-2" class="w-3 h-3"></i></button>
-                <button class="icon-btn icon-view" onclick="verDetallePedido(${id})" title="Ver detalle"><i data-lucide="eye" class="w-3 h-3"></i></button>
-                <button class="icon-btn icon-del" onclick="confirmarEliminarPedido(${id})" title="Eliminar"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                <button class="icon-btn icon-view" onclick="verDetallePedido(${id})" title="Ver detalle" aria-label="Ver detalle del pedido ${id}"><i data-lucide="eye"></i></button>
+                <button class="icon-btn icon-edit" onclick="editarPedido(${id})" title="Editar pedido" aria-label="Editar pedido ${id}"><i data-lucide="pencil"></i></button>
+                <button class="icon-btn icon-del" onclick="confirmarEliminarPedido(${id})" title="Eliminar pedido" aria-label="Eliminar pedido ${id}"><i data-lucide="trash-2"></i></button>
             </div>
         </div>`;
     return div;
 }
 
-function actualizarColumnaKanban(estado, pedidos, paginaActual, totalPages) {
+function actualizarColumnaKanban(estado, pedidos, paginaActual, totalPages, totalPedidos = null) {
     const columna = document.querySelector(`.kanban-column[data-estado="${estado}"]`);
     if (!columna) return;
-    const contenedor = columna.querySelector('.overflow-y-auto');
+    const contenedor = columna.querySelector('.col-body');
     contenedor.innerHTML = '';
 
     if (!pedidos || !pedidos.length) {
@@ -130,6 +157,11 @@ function actualizarColumnaKanban(estado, pedidos, paginaActual, totalPages) {
     const next = columna.querySelector('.pagination-next');
     if (prev) { prev.disabled = paginaActual <= 1; prev.style.opacity = paginaActual <= 1 ? '0.5' : '1'; }
     if (next) { next.disabled = paginaActual >= totalPages; next.style.opacity = paginaActual >= totalPages ? '0.5' : '1'; }
+    const total = totalPedidos ?? (typeof TOTALES_ESTADO !== 'undefined' ? TOTALES_ESTADO[estado] : null);
+    const conteo = columna.querySelector('.count-pedidos');
+    if (conteo && total !== null && total !== undefined) {
+        conteo.textContent = `${total} pedido${Number(total) === 1 ? '' : 's'}`;
+    }
     lucide.createIcons();
 }
 
@@ -273,7 +305,7 @@ async function confirmarAccion(idPedido, nuevoEstado) {
 }
 
 /* ───────── Búsqueda (por cliente o repartidor) ───────── */
-function filtrarTarjetasKanban(q) {
+function filtrarTarjetasKanbanLocal(q) {
     const panel  = document.getElementById('resultado-busqueda');
     const lista  = document.getElementById('lista-resultado-busqueda');
     const titulo = document.getElementById('titulo-resultado-busqueda');
@@ -355,6 +387,80 @@ function iniciarSondeoPedidos() {
     }, 20000);
 }
 
+let busquedaPedidosTimer;
+let busquedaPedidosAbort;
+
+function limpiarBusqueda() {
+    const buscador = document.getElementById('buscador-pedidos');
+    const panel = document.getElementById('resultado-busqueda');
+    const boton = document.getElementById('btn-limpiar-busqueda');
+    if (busquedaPedidosTimer) clearTimeout(busquedaPedidosTimer);
+    if (busquedaPedidosAbort) busquedaPedidosAbort.abort();
+    if (buscador) buscador.value = '';
+    if (panel) panel.classList.add('hidden');
+    if (boton) boton.classList.add('hidden');
+}
+
+function filtrarTarjetasKanban(q) {
+    const panel = document.getElementById('resultado-busqueda');
+    const lista = document.getElementById('lista-resultado-busqueda');
+    const titulo = document.getElementById('titulo-resultado-busqueda');
+    panel.classList.remove('hidden');
+    titulo.textContent = 'Buscando pedidos...';
+    lista.innerHTML = '<div class="search-loading"><span class="loading-spinner"></span><span>Buscando en todos los pedidos</span></div>';
+
+    clearTimeout(busquedaPedidosTimer);
+    if (busquedaPedidosAbort) busquedaPedidosAbort.abort();
+    busquedaPedidosTimer = setTimeout(async () => {
+        busquedaPedidosAbort = new AbortController();
+        try {
+            const res = await fetch(`${BASE_URL}pedidos/buscar?q=${encodeURIComponent(q)}`, {
+                signal: busquedaPedidosAbort.signal,
+            });
+            if (!res.ok) throw new Error('No se pudo completar la búsqueda.');
+            const data = await res.json();
+            if (!data.success) throw new Error(data.message || 'No se pudo completar la búsqueda.');
+
+            const estados = {
+                pedido: ['Pendiente', 'rose'], confirmado: ['Aceptado', 'blue'],
+                en_transito: ['En tránsito', 'amber'], entregado: ['Entregado', 'emerald'],
+                cancelado: ['Cancelado', 'slate'], credito: ['Saldo pendiente', 'purple'], pagado: ['Pagado', 'green'],
+            };
+            lista.replaceChildren();
+            titulo.textContent = `${data.total} resultado${data.total === 1 ? '' : 's'}`;
+            if (!data.pedidos.length) {
+                lista.innerHTML = '<p class="search-empty">No hay pedidos que coincidan. Prueba con otro nombre, producto o número.</p>';
+                return;
+            }
+
+            data.pedidos.forEach(p => {
+                const [estado, color] = estados[p.estado_actual] || ['Sin estado', 'slate'];
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'search-result-card';
+                item.onclick = () => verDetallePedido(p.id_pedido);
+                const cantidadProductos = (p.productos || []).length;
+                item.innerHTML = `
+                    <span class="search-result-icon"><i data-lucide="package-search"></i></span>
+                    <span class="search-result-main">
+                        <strong>${escHtml(`${p.cliente_nombre || ''} ${p.cliente_apellido || ''}`.trim() || 'Cliente')}</strong>
+                        <small>Pedido #${Number(p.id_pedido)} · ${cantidadProductos} producto${cantidadProductos === 1 ? '' : 's'}</small>
+                    </span>
+                    <span class="search-result-total">$${(Number(p.total) || 0).toFixed(2)}</span>
+                    <span class="order-status status-${color}">${estado}</span>
+                    <i data-lucide="arrow-up-right" class="search-result-open"></i>`;
+                lista.appendChild(item);
+            });
+            lucide.createIcons();
+        } catch (error) {
+            if (error.name === 'AbortError') return;
+            console.error(error);
+            titulo.textContent = 'No se pudo buscar';
+            lista.innerHTML = '<p class="search-empty search-error">Ocurrió un error al buscar pedidos. Intenta de nuevo.</p>';
+        }
+    }, 250);
+}
+
 /* ───────── Render inicial ───────── */
 document.addEventListener('DOMContentLoaded', () => {
     const iniciales = typeof PEDIDOS_INICIALES !== 'undefined' ? PEDIDOS_INICIALES : {};
@@ -363,7 +469,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     Object.keys(iniciales).forEach(estado => {
         const totalPages = Math.max(1, Math.ceil((parseInt(totales[estado], 10) || 0) / 10));
-        actualizarColumnaKanban(estado, iniciales[estado], pagina, totalPages);
+        actualizarColumnaKanban(estado, iniciales[estado], pagina, totalPages, totales[estado] || 0);
     });
     iniciarSondeoPedidos();
 });

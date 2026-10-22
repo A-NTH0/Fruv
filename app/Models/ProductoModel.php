@@ -6,7 +6,7 @@ class ProductoModel extends Model
 {
     protected $table         = 'producto';
     protected $primaryKey    = 'id_producto';
-    protected $allowedFields = ['nombre', 'descripcion', 'imagen', 'categoria', 'unidad_venta', 'precio', 'total', 'estado'];
+    protected $allowedFields = ['codigo', 'nombre', 'descripcion', 'imagen', 'categoria', 'unidad_venta', 'precio', 'total', 'estado'];
     protected $useTimestamps = false;
 
     public function getProductos(string $busqueda = '', string $estado = ''): static
@@ -17,6 +17,7 @@ class ProductoModel extends Model
         if ($busqueda !== '') {
             $this->groupStart()
                  ->like('producto.nombre', $busqueda)
+                 ->orLike('producto.codigo', $busqueda)
                  ->orLike('producto.categoria', $busqueda)
                  ->orLike('producto.descripcion', $busqueda)
                  ->groupEnd();
@@ -104,6 +105,16 @@ class ProductoModel extends Model
         if ($idExcluir !== null) {
             $this->where('id_producto !=', $idExcluir);
         }
+        return $this->countAllResults() > 0;
+    }
+
+    public function existeCodigo(string $codigo, ?int $idExcluir = null): bool
+    {
+        $this->where('codigo', trim($codigo));
+        if ($idExcluir !== null) {
+            $this->where('id_producto !=', $idExcluir);
+        }
+
         return $this->countAllResults() > 0;
     }
 

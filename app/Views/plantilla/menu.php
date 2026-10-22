@@ -2,6 +2,7 @@
     $uri           = service('uri');
     $pagina_actual = $uri->getSegment(1);
     $esCliente     = session()->get('auth_role') === 'cliente';
+    $esVendedor    = session()->get('auth_role') === 'vendedor';
     $cantCarrito   = $esCliente ? count(session()->get('carrito') ?? []) : 0;
 
     // aria-current="page" en el enlace de la página actual (RNF-01)
@@ -11,19 +12,13 @@
 
 <a href="#contenido-principal" class="skip-link">Saltar al contenido principal</a>
 
-<button type="button" class="mobile-menu-btn" id="btnMenuMovil" onclick="toggleSidebar()"
-        aria-label="Abrir menú de navegación" aria-controls="menuLateral" aria-expanded="false">
-    <i data-lucide="menu" class="w-5 h-5" aria-hidden="true"></i>
-</button>
-<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
-
 <aside class="sidebar" id="menuLateral">
-    <div class="p-6 mb-2">
-        <p class="text-xl font-bold text-white">🍓Fruver App</p>
-        <p class="text-gray-400 text-xs mt-1">
-            <?= $esCliente ? 'Tienda en línea' : 'Sistema de gestión' ?>
-        </p>
-    </div>
+    <a class="app-brand" href="<?= base_url($esCliente ? 'productos' : ($esVendedor ? 'clientes' : 'dashboard')) ?>">
+        <span class="app-brand-name">🍓 Fruver App</span>
+        <span class="app-brand-role">
+            <?= $esCliente ? 'Tienda en línea' : ($esVendedor ? 'Portal de vendedor' : 'Sistema de gestión') ?>
+        </span>
+    </a>
 
     <nav class="flex-1 px-3 space-y-1" aria-label="Menú principal">
         <?php if ($esCliente): ?>
@@ -43,6 +38,11 @@
             <a href="<?= base_url('perfil') ?>" class="nav-item <?= $pagina_actual === 'perfil' ? 'active' : '' ?>"<?= $actual($pagina_actual === 'perfil') ?>>
                 <i data-lucide="user-circle" class="w-4 h-4" aria-hidden="true"></i>
                 <span>Mi perfil</span>
+            </a>
+        <?php elseif ($esVendedor): ?>
+            <a href="<?= base_url('clientes') ?>" class="nav-item <?= $pagina_actual === 'clientes' ? 'active' : '' ?>"<?= $actual($pagina_actual === 'clientes') ?>>
+                <i data-lucide="users" class="w-4 h-4" aria-hidden="true"></i>
+                <span>Catálogo de clientes</span>
             </a>
         <?php else: ?>
             <a href="<?= base_url('dashboard') ?>"
@@ -80,6 +80,12 @@
                 <i data-lucide="user-square" class="w-4 h-4" aria-hidden="true"></i>
                 <span>Repartidores</span>
             </a>
+
+            <a href="<?= base_url('vendedores') ?>"
+               class="nav-item <?= ($pagina_actual == 'vendedores') ? 'active' : '' ?>"<?= $actual($pagina_actual == 'vendedores') ?>>
+                <i data-lucide="user-round-cog" class="w-4 h-4" aria-hidden="true"></i>
+                <span>Vendedores</span>
+            </a>
         <?php endif; ?>
         <a href="<?= base_url('logout') ?>" class="nav-item mt-auto">
             <i data-lucide="log-out" class="w-4 h-4" aria-hidden="true"></i>
@@ -91,110 +97,131 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script>
   lucide.createIcons();
-
-  (function () {
-      const menu     = document.getElementById('menuLateral');
-      const overlay  = document.getElementById('sidebarOverlay');
-      const boton    = document.getElementById('btnMenuMovil');
-      const esMovil  = window.matchMedia('(max-width: 768px)');
-
-      // En móvil el menú está fuera de pantalla: cerrado no debe recibir foco con Tab (2.4.3 / 2.4.7).
-      function sincronizarMenu() {
-          menu.inert = esMovil.matches && !menu.classList.contains('mobile-open');
-      }
-
-      function toggleSidebar() {
-          const abrir = !menu.classList.contains('mobile-open');
-          menu.classList.toggle('mobile-open', abrir);
-          overlay.classList.toggle('active', abrir);
-          boton.setAttribute('aria-expanded', String(abrir));
-          boton.setAttribute('aria-label', abrir ? 'Cerrar menú de navegación' : 'Abrir menú de navegación');
-          sincronizarMenu();
-          if (abrir) {
-              const primero = menu.querySelector('a');
-              if (primero) primero.focus();
-          } else {
-              boton.focus();
-          }
-      }
-      window.toggleSidebar = toggleSidebar;
-
-      document.addEventListener('keydown', (e) => {
-          if (e.key === 'Escape' && menu.classList.contains('mobile-open')) toggleSidebar();
-      });
-      esMovil.addEventListener('change', sincronizarMenu);
-      sincronizarMenu();
-
-      // Destino del enlace "Saltar al contenido": el <main> de cada página.
-      const principal = document.querySelector('main');
-      const salto     = document.querySelector('.skip-link');
-      if (principal && salto) {
-          if (!principal.id) principal.id = 'contenido-principal';
-          principal.tabIndex = -1;
-          salto.setAttribute('href', '#' + principal.id);
-      } else if (salto) {
-          salto.remove();
-      }
-  })();
+  const principal = document.querySelector('main');
+  const salto = document.querySelector('.skip-link');
+  if (principal && salto) {
+      if (!principal.id) principal.id = 'contenido-principal';
+      principal.tabIndex = -1;
+      salto.setAttribute('href', '#' + principal.id);
+  } else if (salto) {
+      salto.remove();
+  }
 </script>
 
 <style>
+    :root { --app-nav-height: 76px; }
+    html { scroll-padding-top: calc(var(--app-nav-height) + 1rem); }
+    body { padding-top: var(--app-nav-height) !important; }
     .sidebar {
-        width: 260px;
-        background-color: #1A0B0B;
-        color: white;
-        display: flex;
-        flex-direction: column;
-        position: fixed;
-        height: 100vh;
-        left: 0;
-        top: 0;
-        z-index: 1000;
-        box-shadow: 4px 0 10px rgba(0,0,0,0.1);
+        position: fixed !important;
+        inset: 0 0 auto 0 !important;
+        z-index: 1000 !important;
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 1.5rem !important;
+        width: 100% !important;
+        height: var(--app-nav-height) !important;
+        min-height: var(--app-nav-height) !important;
+        padding: 0 1.5rem !important;
+        overflow: visible !important;
+        color: white !important;
+        background: linear-gradient(100deg, #1a0b0b 0%, #2b1117 60%, #35131c 100%) !important;
+        box-shadow: 0 4px 18px rgba(20, 8, 10, .16) !important;
+        box-sizing: border-box !important;
+        transform: none !important;
     }
-    .nav-item {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 0.75rem 1rem;
-        border-radius: 0.75rem;
-        color: #9ca3af;
-        transition: all 0.2s;
-        text-decoration: none;
-        font-size: 0.875rem;
+    .app-brand {
+        display: flex !important;
+        flex: 0 0 auto !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        gap: .12rem !important;
+        min-width: 190px !important;
+        color: white !important;
+        text-decoration: none !important;
     }
-    .nav-item:hover {
-        background-color: rgba(255,255,255,0.05);
-        color: white;
+    .app-brand-name { font-size: 1.1rem !important; font-weight: 800 !important; letter-spacing: -.02em !important; }
+    .app-brand-role { color: #b9aab0 !important; font-size: .68rem !important; }
+    .sidebar nav {
+        display: flex !important;
+        flex: 1 1 auto !important;
+        align-items: center !important;
+        gap: .35rem !important;
+        min-width: 0 !important;
+        height: 100% !important;
+        padding: 0 !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        scrollbar-width: none !important;
     }
-    .nav-item.active {
-        background-color: #e11d48;
-        color: white;
+    .sidebar nav::-webkit-scrollbar { display: none !important; }
+    .sidebar nav > * { margin: 0 !important; }
+    .sidebar .nav-item {
+        display: inline-flex !important;
+        flex: 0 0 auto !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: .55rem !important;
+        min-height: 42px !important;
+        padding: .65rem .85rem !important;
+        margin: 0 !important;
+        border-radius: .7rem !important;
+        color: #d1c7cb !important;
+        font-size: .82rem !important;
+        font-weight: 600 !important;
+        line-height: 1.1 !important;
+        text-decoration: none !important;
+        white-space: nowrap !important;
+        transition: background .18s ease, color .18s ease !important;
     }
-    .nav-badge {
-        margin-left: auto;
-        min-width: 1.35rem;
-        padding: 0 0.4rem;
-        border-radius: 999px;
-        background: #fff;
-        color: #e11d48;
-        font-size: 0.7rem;
-        font-weight: 800;
-        text-align: center;
-        line-height: 1.35rem;
+    .sidebar .nav-item i, .sidebar .nav-item svg { width: 17px !important; height: 17px !important; color: #c2b3b8 !important; }
+    .sidebar .nav-item:hover { color: white !important; background: rgba(255,255,255,.09) !important; }
+    .sidebar .nav-item.active { color: white !important; background: #e91e4d !important; box-shadow: 0 4px 12px rgba(233,30,77,.25) !important; }
+    .sidebar .nav-item.active i, .sidebar .nav-item.active svg { color: white !important; }
+    .sidebar .nav-badge {
+        min-width: 1.25rem !important;
+        padding: 0 .35rem !important;
+        margin-left: .1rem !important;
+        border-radius: 999px !important;
+        color: #e11d48 !important;
+        background: white !important;
+        font-size: .68rem !important;
+        font-weight: 800 !important;
+        line-height: 1.25rem !important;
+        text-align: center !important;
     }
-    .mobile-menu-btn {
-        display: none;
-        position: fixed;
-        top: 12px;
-        left: 12px;
-        z-index: 1100;
-        background: #E91E63;
-        color: #fff;
-        border: 0;
-        border-radius: 12px;
-        padding: 8px 10px;
-        cursor: pointer;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    .sidebar .nav-item[href$="/logout"] { margin-left: auto !important; }
+    .mobile-menu-btn, .sidebar-overlay { display: none !important; }
+    .main-content, .cli-main, body > main, .sidebar ~ main {
+        width: 100% !important;
+        max-width: none !important;
+        min-height: calc(100vh - var(--app-nav-height)) !important;
+        margin: 0 !important;
+        padding: 1.75rem clamp(1rem, 2.5vw, 2.75rem) 2.5rem !important;
+        box-sizing: border-box !important;
+    }
+    .main-content > .max-w-7xl, .main-content > div.mx-auto, main > .max-w-7xl,
+    main > div.mx-auto { width: 100% !important; max-width: none !important; }
+    .skip-link:focus { top: calc(var(--app-nav-height) + .5rem) !important; }
+    @media (max-width: 980px) {
+        :root { --app-nav-height: 68px; }
+        .sidebar { gap: .8rem !important; padding-inline: 1rem !important; }
+        .app-brand { min-width: 150px !important; }
+        .app-brand-name { font-size: 1rem !important; }
+        .sidebar .nav-item { min-height: 40px !important; padding: .55rem .65rem !important; font-size: .76rem !important; }
+    }
+    @media (max-width: 640px) {
+        :root { --app-nav-height: 62px; }
+        .sidebar { gap: .65rem !important; padding-inline: .7rem !important; }
+        .app-brand { min-width: 112px !important; max-width: 112px !important; }
+        .app-brand-name { font-size: .87rem !important; }
+        .app-brand-role { font-size: .58rem !important; }
+        .sidebar nav { gap: .15rem !important; }
+        .sidebar .nav-item { min-height: 38px !important; padding: .5rem .55rem !important; font-size: .7rem !important; }
+        .sidebar .nav-item i, .sidebar .nav-item svg { width: 15px !important; height: 15px !important; }
+        .main-content, .cli-main, body > main, .sidebar ~ main {
+            padding: 1.25rem .85rem 2rem !important;
+        }
     }
 </style>

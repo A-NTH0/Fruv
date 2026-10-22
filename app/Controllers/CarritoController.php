@@ -197,7 +197,7 @@ class CarritoController extends BaseController
         }
 
         $this->guardar([]);
-        session()->setFlashdata('pedido_ok', $res['id_pedido']);
+        session()->setFlashdata('pedido_ok', $res['numero_pedido_cliente']);
 
         return $this->response->setJSON([
             'success'   => true,

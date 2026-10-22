@@ -48,7 +48,7 @@ $pedidoOk    = session()->getFlashdata('pedido_ok');
                              data-info="<?= esc(json_encode(['pago' => $p['pago'], 'puede_cancelar' =>$p['puede_cancelar']], JSON_UNESCAPED_UNICODE), 'attr') ?>">
                         <div class="pedido-top">
                             <div>
-                                <h2>Pedido #<?= (int) $p['id_pedido'] ?></h2>
+                                <h2>Pedido #<?= (int) $p['numero_pedido_cliente'] ?></h2>
                                 <p><?= esc(date('d/m/Y', strtotime($p['fecha']))) ?> · <?= esc($p['pago']['modalidad_texto']) ?></p>
                             </div>
                             <div class="pedido-right">

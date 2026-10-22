@@ -32,12 +32,25 @@ $routes->post('clientes/baja', 'ClientesController::darDeBaja');
 $routes->post('clientes/preferencial', 'ClientesController::preferencial');
 $routes->get('clientes/verificarEliminar/(:num)', 'ClientesController::verificarEliminar/$1');
 $routes->get('clientes/eliminar/(:num)', 'ClientesController::eliminar/$1');
+$routes->get('clientes/historial/(:num)', 'ClientesController::historial/$1');
+$routes->post('clientes/recargar', 'ClientesController::recargar');
+$routes->get('clientes/pedido/nuevo/(:num)', 'ClientesController::nuevoPedido/$1');
+$routes->get('clientes/pedido/(:num)', 'ClientesController::catalogoPedido/$1');
+$routes->post('clientes/pedido/agregar', 'ClientesController::agregarProductoPedido');
+$routes->post('clientes/pedido/actualizar', 'ClientesController::actualizarCantidadPedido');
+$routes->post('clientes/pedido/quitar', 'ClientesController::quitarProductoPedido');
+$routes->post('clientes/pedido/enviar', 'ClientesController::enviarPedidoVendedor');
 
 $routes->get('repartidores', 'RepartidoresController::index');
 $routes->post('repartidores/guardar', 'RepartidoresController::guardar');
 $routes->post('repartidores/actualizar', 'RepartidoresController::actualizar');
 $routes->get('repartidores/verificarEliminar/(:num)', 'RepartidoresController::verificarEliminar/$1');
 $routes->get('repartidores/eliminar/(:num)', 'RepartidoresController::eliminar/$1');
+
+$routes->get('vendedores', 'VendedoresController::index');
+$routes->post('vendedores/guardar', 'VendedoresController::guardar');
+$routes->post('vendedores/actualizar', 'VendedoresController::actualizar');
+$routes->post('vendedores/eliminar', 'VendedoresController::eliminar');
 
 $routes->get('pedidos', 'PedidosController::index');
 $routes->get('pedidos/getPedidosPaginados', 'PedidosController::getPedidosPaginados');

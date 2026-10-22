@@ -36,7 +36,7 @@
                         <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
                         <input type="text" name="buscar" id="inputBuscar" 
                                value="<?= esc($busqueda ?? '') ?>" 
-                               placeholder="Buscar productos..." 
+                               placeholder="Buscar por nombre, código..."
                                oninput="buscarDinamico()"
                                autocomplete="off"
                                class="pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-2xl focus:ring-2 focus:ring-rose-500 outline-none text-sm w-64 shadow-sm">
@@ -47,6 +47,10 @@
                     </button>
                 </div>
             </div>
+
+            <?php if ($error = session()->getFlashdata('error')): ?>
+                <div role="alert" class="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><?= esc($error) ?></div>
+            <?php endif; ?>
 
             <div id="contenedor-dinamico">
 <?php endif; ?>
@@ -73,6 +77,9 @@
                                     </div>
                                     <div>
                                         <h3 class="text-xl font-extrabold text-gray-800 leading-tight uppercase"><?= esc($p['nombre']) ?></h3>
+                                        <?php if (! empty($p['codigo'])): ?>
+                                            <span class="block mt-1 text-xs font-semibold text-gray-500">Código: <?= esc($p['codigo']) ?></span>
+                                        <?php endif; ?>
                                         <span class="inline-block mt-0.5 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest 
                                             <?= ($p['categoria'] == 'frutas') ? 'bg-rose-100 text-rose-600' : (($p['categoria'] == 'verduras') ? 'bg-emerald-100 text-emerald-600' : 'bg-green-100 text-green-700') ?>">
                                             <?= ($p['categoria'] == 'hiervas') ? 'hierbas' : esc($p['categoria']) ?>
@@ -202,6 +209,12 @@
                 <input type="hidden" name="id_producto" id="edit_id">
 
                 <div>
+                    <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Código del Producto</label>
+                    <input type="text" name="codigo" id="edit_codigo" maxlength="50" required
+                           class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-rose-500 outline-none text-sm font-medium">
+                </div>
+
+                <div>
                     <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Nombre del Producto</label>
                     <input type="text" name="nombre" id="edit_nombre" required
                            class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-rose-500 outline-none text-sm font-medium">
@@ -322,6 +335,7 @@
             document.getElementById('formProducto').action     = "<?= base_url('productos/guardar') ?>";
             document.getElementById('formProducto').reset();
             document.getElementById('edit_id').value           = "";
+            document.getElementById('edit_codigo').value       = "";
             document.getElementById('edit_precio').value       = "";
             document.getElementById('edit_estado').value       = "activo";
             document.getElementById('fileName').textContent    = "Selecciona un archivo...";
@@ -332,6 +346,7 @@
             document.getElementById('modalTitulo').textContent     = "Editar Producto";
             document.getElementById('formProducto').action         = "<?= base_url('productos/actualizar') ?>";
             document.getElementById('edit_id').value               = producto.id_producto;
+            document.getElementById('edit_codigo').value           = producto.codigo ?? "";
             document.getElementById('edit_nombre').value           = producto.nombre;
             document.getElementById('edit_categoria').value        = producto.categoria;
             document.getElementById('edit_unidad').value           = producto.unidad_venta;
@@ -451,6 +466,29 @@
         }
 
         document.addEventListener('DOMContentLoaded', sincronizarPaginacion);
+
+        <?php if (session()->getFlashdata('modalProducto') === 'nuevo'): ?>
+            abrirModalNuevo();
+            document.getElementById('edit_codigo').value = <?= json_encode(old('codigo', '')) ?>;
+            document.getElementById('edit_nombre').value = <?= json_encode(old('nombre', '')) ?>;
+            document.getElementById('edit_categoria').value = <?= json_encode(old('categoria', 'frutas')) ?>;
+            document.getElementById('edit_unidad').value = <?= json_encode(old('unidad_venta', 'kilos')) ?>;
+            document.getElementById('edit_precio').value = <?= json_encode(old('precio', '')) ?>;
+            document.getElementById('edit_estado').value = <?= json_encode(old('estado', 'activo')) ?>;
+            document.getElementById('edit_descripcion').value = <?= json_encode(old('descripcion', '')) ?>;
+        <?php elseif (session()->getFlashdata('modalProducto') === 'editar'): ?>
+            document.getElementById('modalTitulo').textContent = "Editar Producto";
+            document.getElementById('formProducto').action = "<?= base_url('productos/actualizar') ?>";
+            document.getElementById('edit_id').value = <?= json_encode(old('id_producto', '')) ?>;
+            document.getElementById('edit_codigo').value = <?= json_encode(old('codigo', '')) ?>;
+            document.getElementById('edit_nombre').value = <?= json_encode(old('nombre', '')) ?>;
+            document.getElementById('edit_categoria').value = <?= json_encode(old('categoria', 'frutas')) ?>;
+            document.getElementById('edit_unidad').value = <?= json_encode(old('unidad_venta', 'kilos')) ?>;
+            document.getElementById('edit_precio').value = <?= json_encode(old('precio', '')) ?>;
+            document.getElementById('edit_estado').value = <?= json_encode(old('estado', 'activo')) ?>;
+            document.getElementById('edit_descripcion').value = <?= json_encode(old('descripcion', '')) ?>;
+            document.getElementById('modalProducto').classList.remove('hidden');
+        <?php endif; ?>
     </script>
 </body>
 </html>

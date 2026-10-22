@@ -10,6 +10,7 @@ class AuthFilter implements FilterInterface
 {
     /** Primer segmento de las rutas exclusivas del cliente. */
     private const RUTAS_CLIENTE = ['carrito', 'mis-pedidos', 'perfil'];
+    private const RUTAS_ADMIN = ['vendedores'];
 
     public function before(RequestInterface $request, $arguments = null)
     {
@@ -24,11 +25,63 @@ class AuthFilter implements FilterInterface
         $esRutaCliente = in_array($primero, self::RUTAS_CLIENTE, true);
 
         // Falla cerrado: un rol desconocido nunca hereda permisos de administrador.
-        // Cuando se agreguen los roles repartidor / vendedor, hay que declararlos aquí con sus rutas.
-        if (! in_array($rol, ['admin', 'cliente'], true)) {
+        if (! in_array($rol, ['admin', 'cliente', 'vendedor'], true)) {
             $session->destroy();
 
             return redirect()->to(base_url('login'));
+        }
+
+        if ($rol === 'vendedor') {
+            $vigente = db_connect()->table('vendedor')
+                ->where('id', (int) $session->get('vendedor_id'))
+                ->countAllResults() > 0;
+
+            if (! $vigente) {
+                $session->destroy();
+
+                return redirect()->to(base_url('login'));
+            }
+
+            $esLogout = $segments === ['logout'];
+            $esCatalogo = strtoupper($request->getMethod()) === 'GET'
+                && $segments === ['clientes'];
+            $esHistorial = strtoupper($request->getMethod()) === 'GET'
+                && count($segments) === 3
+                && $segments[0] === 'clientes'
+                && $segments[1] === 'historial'
+                && ctype_digit((string) $segments[2]);
+            $esRecarga = strtoupper($request->getMethod()) === 'POST'
+                && $segments === ['clientes', 'recargar'];
+            $esCatalogoPedido = strtoupper($request->getMethod()) === 'GET'
+                && count($segments) === 3
+                && $segments[0] === 'clientes'
+                && $segments[1] === 'pedido'
+                && ctype_digit((string) $segments[2]);
+            $esNuevoPedido = strtoupper($request->getMethod()) === 'GET'
+                && count($segments) === 4
+                && $segments[0] === 'clientes'
+                && $segments[1] === 'pedido'
+                && $segments[2] === 'nuevo'
+                && ctype_digit((string) $segments[3]);
+            $esAccionPedido = strtoupper($request->getMethod()) === 'POST'
+                && $segments === ['clientes', 'pedido', 'agregar'];
+            $esActualizarPedido = strtoupper($request->getMethod()) === 'POST'
+                && $segments === ['clientes', 'pedido', 'actualizar'];
+            $esQuitarPedido = strtoupper($request->getMethod()) === 'POST'
+                && $segments === ['clientes', 'pedido', 'quitar'];
+            $esEnviarPedido = strtoupper($request->getMethod()) === 'POST'
+                && $segments === ['clientes', 'pedido', 'enviar'];
+
+            if (! $esLogout && ! $esCatalogo && ! $esHistorial && ! $esRecarga
+                && ! $esCatalogoPedido && ! $esNuevoPedido && ! $esAccionPedido && ! $esActualizarPedido && ! $esQuitarPedido && ! $esEnviarPedido) {
+                return redirect()->to(base_url('clientes'));
+            }
+
+            return null;
+        }
+
+        if ($rol !== 'admin' && in_array($primero, self::RUTAS_ADMIN, true)) {
+            return redirect()->to(base_url('productos'));
         }
 
         // El administrador no usa las rutas del cliente.

@@ -292,7 +292,17 @@ class PedidoClienteModel
 
             $this->db->transCommit();
 
-            return ['success' => true, 'id_pedido' => $idPedido, 'message' => 'Pedido enviado.'];
+            $numeroPedidoCliente = $this->db->table('pedido')
+                ->where('id_cliente1', $idCliente)
+                ->where('id_pedido <=', $idPedido)
+                ->countAllResults();
+
+            return [
+                'success' => true,
+                'id_pedido' => $idPedido,
+                'numero_pedido_cliente' => $numeroPedidoCliente,
+                'message' => 'Pedido enviado.',
+            ];
         } catch (\Throwable $e) {
             $this->db->transRollback();
             log_message('error', 'No se pudo crear el pedido del cliente: ' . $e->getMessage());
@@ -309,6 +319,7 @@ class PedidoClienteModel
     {
         return $this->db->table('pedido p')
             ->select('p.id_pedido, p.fecha, p.total, p.modalidad_pago, p.deuda_restante, p.pago_inicial, p.origen, p.en_espera, p.id_repartidor,
+                      (SELECT COUNT(*) FROM pedido p_num WHERE p_num.id_cliente1 = p.id_cliente1 AND p_num.id_pedido <= p.id_pedido) AS numero_pedido_cliente,
                       p.fecha_entrega_programada, p.horario_entrega,
                       r.nombre AS repartidor_nombre, r.ap_paterno AS repartidor_apellido,
                       s.estado AS estado_actual, s.fecha AS estado_fecha,
@@ -351,7 +362,7 @@ class PedidoClienteModel
 
         if ($ids !== []) {
             $filas = $this->db->table('producto_pedido pp')
-                ->select('pp.id_pedido1, pp.cantidad, pp.precio_venta, pp.unidad_venta, pp.total, pr.nombre AS nombre_producto')
+                ->select('pp.id_pedido1, pp.id_producto3, pp.cantidad, pp.precio_venta, pp.unidad_venta, pp.total, pr.nombre AS nombre_producto')
                 ->join('producto pr', 'pr.id_producto = pp.id_producto3')
                 ->whereIn('pp.id_pedido1', $ids)
                 ->get()
@@ -369,6 +380,106 @@ class PedidoClienteModel
         unset($p);
 
         return ['pedidos' => $pedidos, 'total' => $total, 'paginas' => $paginas];
+    }
+
+    /**
+     * Gets order quantities only when the order belongs to the requested client.
+     *
+     * @return array<int, float>|null Null when the order does not belong to the client.
+     */
+    public function getCantidadesPedidoCliente(int $idCliente, int $idPedido): ?array
+    {
+        $pedidoExiste = $this->db->table('pedido')
+            ->where('id_pedido', $idPedido)
+            ->where('id_cliente1', $idCliente)
+            ->countAllResults() > 0;
+
+        if (! $pedidoExiste) {
+            return null;
+        }
+
+        $lineas = $this->db->table('producto_pedido')
+            ->select('id_producto3, cantidad')
+            ->where('id_pedido1', $idPedido)
+            ->get()
+            ->getResultArray();
+
+        $cantidades = [];
+        foreach ($lineas as $linea) {
+            $idProducto = (int) $linea['id_producto3'];
+            $cantidades[$idProducto] = ($cantidades[$idProducto] ?? 0) + (float) $linea['cantidad'];
+        }
+
+        return $cantidades;
+    }
+
+    /**
+     * Creates a new pending order using the quantities in a previous order.
+     * Current prices and stock are checked by crearPedidoDesdeCarrito().
+     */
+    public function recargarPedido(int $idCliente, int $idPedido, array $cantidades = []): array
+    {
+        $pedido = $this->db->table('pedido')
+            ->select('id_pedido, modalidad_pago')
+            ->where('id_pedido', $idPedido)
+            ->where('id_cliente1', $idCliente)
+            ->get()
+            ->getRowArray();
+
+        if (! $pedido) {
+            return ['success' => false, 'message' => 'El pedido no existe para este cliente.'];
+        }
+
+        $estado = $this->getEstadoActual($idPedido);
+        if (! in_array($estado, ['entregado', 'credito', 'pagado'], true)) {
+            return ['success' => false, 'message' => 'Solo se pueden recargar pedidos que ya fueron entregados.'];
+        }
+
+        $lineas = $this->db->table('producto_pedido')
+            ->select('producto_pedido.id_producto3, producto_pedido.cantidad, producto.unidad_venta')
+            ->join('producto', 'producto.id_producto = producto_pedido.id_producto3')
+            ->where('id_pedido1', $idPedido)
+            ->get()
+            ->getResultArray();
+
+        $carrito = [];
+        foreach ($lineas as $linea) {
+            $idProducto = (int) $linea['id_producto3'];
+            $cantidad   = $cantidades === []
+                ? (float) $linea['cantidad']
+                : ($cantidades[$idProducto] ?? null);
+
+            if (! is_numeric($cantidad) || ! is_finite((float) $cantidad)
+                || (float) $cantidad <= 0 || (float) $cantidad > 10000) {
+                return ['success' => false, 'message' => 'Ingresa una cantidad válida para cada producto del pedido.'];
+            }
+
+            $cantidad = round((float) $cantidad, 2);
+            if ($linea['unidad_venta'] !== 'kilos' && floor($cantidad) !== $cantidad) {
+                return ['success' => false, 'message' => 'La cantidad de ' . $linea['unidad_venta'] . ' debe ser un número entero.'];
+            }
+
+            $carrito[$idProducto] = $cantidad;
+        }
+
+        if ($cantidades !== [] && array_diff(array_map('intval', array_keys($cantidades)), array_keys($carrito)) !== []) {
+            return ['success' => false, 'message' => 'El pedido contiene productos no válidos.'];
+        }
+
+        if ($carrito === []) {
+            return ['success' => false, 'message' => 'El pedido no contiene productos para recargar.'];
+        }
+
+        $modalidad = $pedido['modalidad_pago'] === 'credito' ? 'credito' : 'contado';
+
+        return $this->crearPedidoDesdeCarrito(
+            $idCliente,
+            $carrito,
+            null,
+            null,
+            $modalidad,
+            0.0
+        );
     }
 
     /** Estados actuales de los pedidos indicados (solo si pertenecen al cliente). */
