@@ -435,4 +435,4 @@
     </script>
     <script src="<?= base_url('js/inventario.js') ?>"></script>
 </body>
-</html>
+</html> 
