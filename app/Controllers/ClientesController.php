@@ -146,12 +146,25 @@ class ClientesController extends BaseController
     public function darDeBaja()
     {
         $id = (int) $this->request->getPost('id_cliente');
-        if ($id > 0) {
-            (new ClienteModel())->darDeBaja($id);
+        if ($id <= 0) {
+            return redirect()->to(base_url('clientes'))->with('error', 'No se indicó un cliente válido.');
         }
+
+        $model   = new ClienteModel();
+        $cliente = $model->find($id);
+
+        if (! $cliente || (int) $cliente['baja'] === 1) {
+            return redirect()->to(base_url('clientes'))->with('error', 'El cliente no existe o ya estaba dado de baja.');
+        }
+        if ($model->tienePedidosActivos($id)) {
+            return redirect()->to(base_url('clientes'))->with('error', 'No se puede dar de baja a este cliente porque tiene pedidos en curso o saldo pendiente. Entrega, cancela o cobra esos pedidos primero.');
+        }
+        if (! $model->darDeBaja($id)) {
+            return redirect()->to(base_url('clientes'))->with('error', 'No se pudo dar de baja al cliente.');
+        }
+
         return redirect()->to(base_url('clientes'));
     }
-
     public function verificarEliminar($id = null)
     {
         if (!$id) {

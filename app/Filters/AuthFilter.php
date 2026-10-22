@@ -18,13 +18,34 @@ class AuthFilter implements FilterInterface
             return redirect()->to(base_url('login'));
         }
 
-        $segments     = service('uri')->getSegments();
-        $primero      = $segments[0] ?? '';
+        $rol           = $session->get('auth_role');
+        $segments      = service('uri')->getSegments();
+        $primero       = $segments[0] ?? '';
         $esRutaCliente = in_array($primero, self::RUTAS_CLIENTE, true);
 
+        // Falla cerrado: un rol desconocido nunca hereda permisos de administrador.
+        // Cuando se agreguen los roles repartidor / vendedor, hay que declararlos aquí con sus rutas.
+        if (! in_array($rol, ['admin', 'cliente'], true)) {
+            $session->destroy();
+
+            return redirect()->to(base_url('login'));
+        }
+
         // El administrador no usa las rutas del cliente.
-        if ($session->get('auth_role') !== 'cliente') {
+        if ($rol === 'admin') {
             return $esRutaCliente ? redirect()->to(base_url('dashboard')) : null;
+        }
+
+        // RNF-04: si el cliente fue dado de baja (o eliminado) con la sesión abierta, se cierra al instante.
+        $vigente = db_connect()->table('cliente')
+            ->where('id_cliente', (int) $session->get('cliente_id'))
+            ->where('baja', 0)
+            ->countAllResults() > 0;
+
+        if (! $vigente) {
+            $session->destroy();
+
+            return redirect()->to(base_url('login'));
         }
 
         $isCatalog = strtoupper($request->getMethod()) === 'GET'

@@ -53,11 +53,38 @@ class ClienteModel extends Model
     }
 
     /**
+     * Pedidos en curso del cliente: último estado pedido / confirmado / en_transito,
+     * o a crédito con saldo pendiente. Mientras existan, no se puede dar de baja
+     * (mismo criterio que el RF-08 para repartidores con pedidos activos).
+     */
+    public function tienePedidosActivos(int $idCliente): bool
+    {
+        $fila = \Config\Database::connect()->query(
+            "SELECT COUNT(*) AS n
+               FROM pedido pe
+               JOIN (SELECT id_pedido2, MAX(id_status) AS max_id FROM status GROUP BY id_pedido2) l
+                    ON l.id_pedido2 = pe.id_pedido
+               JOIN status st ON st.id_status = l.max_id
+              WHERE pe.id_cliente1 = ?
+                AND (st.estado IN ('pedido', 'confirmado', 'en_transito')
+                     OR (st.estado = 'credito' AND COALESCE(pe.deuda_restante, 0) > 0))",
+            [$idCliente]
+        )->getRowArray();
+
+        return (int) ($fila['n'] ?? 0) > 0;
+    }
+
+    /**
      * Baja manual (RNF-04): anonimiza los datos personales y borra la dirección,
      * conservando el historial de pedidos para no romper reportes ni relaciones.
+     * No procede si el cliente tiene pedidos en curso o saldo pendiente.
      */
     public function darDeBaja(int $idCliente): bool
     {
+        if ($this->tienePedidosActivos($idCliente)) {
+            return false;
+        }
+
         $db = \Config\Database::connect();
         $db->transStart();
         $this->update($idCliente, [
@@ -65,13 +92,15 @@ class ClienteModel extends Model
             'ap_paterno' => '',
             'ap_materno' => '',
             'telefono'   => '',
-            'email'      => '',
+            // Marcador único y sin datos personales: evita choques si la columna email tiene índice UNIQUE.
+            'email'      => 'baja-' . $idCliente . '@baja.invalid',
             'hash'       => '',
             'baja'       => 1,
             'fecha_baja' => date('Y-m-d H:i:s'),
         ]);
         $db->table('direccion')->where('id_cliente', $idCliente)->delete();
         $db->transComplete();
+
         return $db->transStatus();
     }
     protected $useAutoIncrement = true;

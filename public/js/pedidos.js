@@ -487,6 +487,39 @@ function cerrarModalDetalle(event) {
     }
 }
 
+/* ═════════ EDICIÓN DE PEDIDO ═════════
+   RF-12: cantidad y precio unitario son editables en cada línea, también cuando el cliente es
+   preferencial (el descuento solo se sugiere; el administrador puede cambiarlo). */
+
+let editPedidoDescontado = false;   // true si el pedido ya fue aceptado (su stock ya está descontado)
+
+/** Fila de producto del modal de edición. */
+function filaEdicionHtml(id, nombre, cantidad, unidad, precio) {
+    const cant = parseFloat(cantidad) || 0;
+    const prec = parseFloat(precio) || 0;
+    return `
+    <tr data-producto-id="${escHtml(id)}" data-unidad="${escHtml(unidad)}">
+        <td class="py-2 text-left font-medium text-sm">${escHtml(nombre)}</td>
+        <td class="py-2 text-center">
+            <input type="number" value="${cant}" min="0.01" step="0.01"
+                class="w-20 p-1 border rounded text-center linea-cant"
+                aria-label="Cantidad de ${escHtml(nombre)}">
+        </td>
+        <td class="py-2 text-center text-sm">${escHtml(unidad)}</td>
+        <td class="py-2 text-right">
+            <input type="number" value="${prec.toFixed(2)}" min="0.01" step="0.01"
+                class="w-24 p-1 border rounded text-right linea-precio border-amber-300 bg-amber-50"
+                aria-label="Precio unitario de ${escHtml(nombre)}">
+        </td>
+        <td class="py-2 text-right font-bold text-sm subtotal">$${(cant * prec).toFixed(2)}</td>
+        <td class="py-2 text-center">
+            <button type="button" onclick="eliminarFilaProducto(this)" aria-label="Quitar ${escHtml(nombre)} del pedido" class="text-rose-500 hover:text-rose-700">
+                <i data-lucide="trash-2" class="w-4 h-4" aria-hidden="true"></i>
+            </button>
+        </td>
+    </tr>`;
+}
+
 function editarPedido(idPedido) {
     Swal.fire({ title: 'Cargando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     fetch(BASE_URL + 'pedidos/obtenerDetallePedido?id_pedido=' + idPedido)
@@ -495,27 +528,12 @@ function editarPedido(idPedido) {
         Swal.close();
         if (!data.success) { Swal.fire('Error', data.message || 'No se pudo cargar el pedido', 'error'); return; }
         const p = data.pedido;
+        editPedidoDescontado = parseInt(p.stock_descontado, 10) === 1;
 
         let productosExistentesHtml = '';
         if (data.detalles && data.detalles.length > 0) {
             data.detalles.forEach(d => {
-                productosExistentesHtml += `
-                    <tr data-producto-id="${d.id_producto3 || d.id_producto}">
-                        <td class="py-2 text-left font-medium text-sm">${d.nombre_producto}</td>
-                        <td class="py-2 text-center">
-                            <input type="number" value="${d.cantidad}" min="0.01" step="0.01"
-                                class="w-20 p-1 border rounded text-center cant-producto"
-                                data-id="${d.id_producto3 || d.id_producto}" data-precio="${d.precio_venta}">
-                        </td>
-                        <td class="py-2 text-center text-sm">${d.unidad_venta}</td>
-                        <td class="py-2 text-right text-sm">$${parseFloat(d.precio_venta).toFixed(2)}</td>
-                        <td class="py-2 text-right font-bold text-sm subtotal">$${(d.cantidad * d.precio_venta).toFixed(2)}</td>
-                        <td class="py-2 text-center">
-                            <button type="button" onclick="eliminarFilaProducto(this)" class="text-rose-500 hover:text-rose-700">
-                                <i data-lucide="trash-2" class="w-4 h-4"></i>
-                            </button>
-                        </td>
-                    </tr>`;
+                productosExistentesHtml += filaEdicionHtml(d.id_producto3, d.nombre_producto, d.cantidad, d.unidad_venta, d.precio_venta);
             });
         } else {
             productosExistentesHtml = '<tr id="fila-vacia-edit"><td colspan="6" class="text-center py-4 text-gray-400">No hay productos</td></tr>';
@@ -578,8 +596,8 @@ function editarPedido(idPedido) {
                             <input type="text" id="edit-sel-prod-texto" class="autocomplete-input text-sm" placeholder="Buscar producto..." autocomplete="off">
                             <div id="edit-prod-lista" class="autocomplete-list"></div>
                         </div>
-                        <input type="number" id="edit-cant-prod" value="1" min="0.01" step="0.01" class="w-24 p-2 border rounded-lg text-sm">
-                        <select id="edit-unidad-prod" class="w-28 p-2 border rounded-lg text-sm">
+                        <input type="number" id="edit-cant-prod" value="1" min="0.01" step="0.01" class="w-24 p-2 border rounded-lg text-sm" aria-label="Cantidad a agregar">
+                        <select id="edit-unidad-prod" class="w-28 p-2 border rounded-lg text-sm" aria-label="Unidad">
                             <option value="kilos">Kilos</option>
                             <option value="domos">Domos</option>
                             <option value="ramos">Ramos</option>
@@ -591,7 +609,13 @@ function editarPedido(idPedido) {
                     </div>
                 </div>
                 <div class="mb-4">
-                    <h3 class="font-bold text-gray-700 mb-3 text-sm">📦 Productos del Pedido</h3>
+                    <div class="flex items-center justify-between gap-2 flex-wrap mb-2">
+                        <h3 class="font-bold text-gray-700 text-sm">📦 Productos del Pedido</h3>
+                        <button type="button" onclick="aplicarPrecioPreferencialEdicion()" class="text-xs font-bold bg-amber-100 text-amber-900 px-3 py-1.5 rounded-lg hover:bg-amber-200">
+                            ⭐ Aplicar precio preferencial (-${DESCUENTO_PREFERENCIAL}%)
+                        </button>
+                    </div>
+                    <p class="text-[11px] text-gray-600 mb-2">💡 La cantidad y el precio unitario se pueden editar en cada línea.</p>
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead class="bg-gray-100">
@@ -624,7 +648,7 @@ function editarPedido(idPedido) {
         document.getElementById('modalEditar').classList.remove('hidden');
         document.getElementById('modalEditar').classList.add('flex');
         lucide.createIcons();
-        
+
         crearAutocomplete('edit-cliente-texto', 'edit-cliente-id', 'edit-cliente-lista', CLIENTES_DATA, avisoClientePreferencial);
         crearAutocomplete('edit-repartidor-texto', 'edit-repartidor-id', 'edit-repartidor-lista', REPARTIDORES_DATA);
         crearAutocomplete('edit-sel-prod-texto', 'edit-prod-id', 'edit-prod-lista', PRODUCTOS_DATA, (item) => {
@@ -634,17 +658,39 @@ function editarPedido(idPedido) {
             inputEditProd.dataset.nombreLimpio = item.nombre_limpio;
         }, 'No hay productos activos o con stock');
 
-        document.querySelectorAll('#edit-productos-body .cant-producto').forEach(input => {
-            input.addEventListener('change', function() {
-                const precio   = parseFloat(this.dataset.precio);
-                const cantidad = parseFloat(this.value);
-                const row      = this.closest('tr');
-                row.querySelector('.subtotal').textContent = '$' + (precio * cantidad).toFixed(2);
-                recalcularTotalEdicion();
-            });
+        // Subtotales y total salen de los campos de cantidad y precio, y se recalculan al escribir.
+        document.getElementById('edit-productos-body').addEventListener('input', (ev) => {
+            if (ev.target.matches('.linea-cant, .linea-precio')) recalcularTotalEdicion();
         });
 
     }).catch(err => { Swal.close(); console.error(err); Swal.fire('Error', 'No se pudo cargar el pedido para editar', 'error'); });
+}
+
+/** Aplica a cada línea el precio de catálogo con el descuento preferencial; se puede volver a editar a mano. */
+function aplicarPrecioPreferencialEdicion() {
+    const clienteId = document.getElementById('edit-cliente-id').value;
+    const cliente   = CLIENTES_DATA.find(c => String(c.id) === String(clienteId));
+
+    if (!cliente || !cliente.preferencial) {
+        Swal.fire('Cliente no preferencial', 'Este cliente todavía no es preferencial. Puedes asignarle la marca desde la vista de Clientes.', 'info');
+        return;
+    }
+
+    let aplicados = 0, omitidos = 0;
+    document.querySelectorAll('#edit-productos-body tr[data-producto-id]').forEach(row => {
+        const prod = PRODUCTOS_DATA.find(x => String(x.id) === String(row.dataset.productoId));
+        if (!prod || !(prod.precio > 0)) { omitidos++; return; }
+        row.querySelector('.linea-precio').value = precioSugerido(prod.precio, cliente.id).toFixed(2);
+        aplicados++;
+    });
+    recalcularTotalEdicion();
+
+    Swal.fire({
+        toast: true, position: 'top-end', icon: aplicados ? 'success' : 'warning', timer: 4500, showConfirmButton: false,
+        title: aplicados
+            ? `Precio preferencial aplicado a ${aplicados} línea(s)` + (omitidos ? `; ${omitidos} sin precio de catálogo` : '')
+            : 'Ninguna línea tiene precio de catálogo disponible'
+    });
 }
 
 function agregarProductoEnEdicion() {
@@ -661,22 +707,22 @@ function agregarProductoEnEdicion() {
     if (!precio || isNaN(precio))         { Swal.fire('Error', 'Este producto no tiene precio', 'error');      return; }
 
     const filaExistente = document.querySelector(`#edit-productos-body tr[data-producto-id="${id}"]`);
-    const cantActual    = filaExistente ? parseFloat(filaExistente.querySelector('.cant-producto, .cant-nueva').value) : 0;
+    const cantActual    = filaExistente ? (parseFloat(filaExistente.querySelector('.linea-cant').value) || 0) : 0;
 
-    if ((cantActual + cantidad) > stockDisp) {
+    // Si el pedido ya fue aceptado, su stock ya está descontado: solo lo que se agrega cuenta contra lo disponible.
+    const requerido = editPedidoDescontado ? cantidad : cantActual + cantidad;
+
+    if (requerido > stockDisp) {
         Swal.fire({
             title: 'Stock Insuficiente',
-            html: `Solo tienes <b>${stockDisp}</b> unidades disponibles de ${nombre}.<br>No puedes asignar ${cantActual + cantidad}.`,
+            html: `Solo tienes <b>${stockDisp}</b> unidades disponibles de ${escHtml(nombre)}.<br>No puedes asignar ${requerido}.`,
             icon: 'warning'
         });
         return;
     }
 
     if (filaExistente) {
-        const inputCant = filaExistente.querySelector('.cant-producto, .cant-nueva');
-        const nuevaCant = cantActual + cantidad;
-        inputCant.value = nuevaCant;
-        filaExistente.querySelector('.subtotal').textContent = '$' + (parseFloat(inputCant.dataset.precio) * nuevaCant).toFixed(2);
+        filaExistente.querySelector('.linea-cant').value = Math.round((cantActual + cantidad) * 100) / 100;
         recalcularTotalEdicion();
         document.getElementById('edit-cant-prod').value = 1;
         return;
@@ -685,32 +731,7 @@ function agregarProductoEnEdicion() {
     const filaVacia = document.getElementById('fila-vacia-edit');
     if (filaVacia) filaVacia.remove();
 
-    const subtotal = precio * cantidad;
-    const tr = document.createElement('tr');
-    tr.setAttribute('data-producto-id', id);
-    tr.innerHTML = `
-        <td class="py-2 text-left font-medium text-sm">${nombre}</td>
-        <td class="py-2 text-center">
-            <input type="number" value="${cantidad}" min="0.01" step="0.01"
-                class="w-20 p-1 border rounded text-center cant-nueva"
-                data-id="${id}" data-precio="${precio}">
-        </td>
-        <td class="py-2 text-center text-sm">${unidad}</td>
-        <td class="py-2 text-right text-sm">$${precio.toFixed(2)}</td>
-        <td class="py-2 text-right font-bold text-sm subtotal">$${subtotal.toFixed(2)}</td>
-        <td class="py-2 text-center">
-            <button type="button" onclick="eliminarFilaProducto(this)" class="text-rose-500 hover:text-rose-700">
-                <i data-lucide="trash-2" class="w-4 h-4"></i>
-            </button>
-        </td>`;
-    document.getElementById('edit-productos-body').appendChild(tr);
-
-    tr.querySelector('.cant-nueva').addEventListener('change', function() {
-        const p = parseFloat(this.dataset.precio);
-        const c = parseFloat(this.value);
-        tr.querySelector('.subtotal').textContent = '$' + (p * c).toFixed(2);
-        recalcularTotalEdicion();
-    });
+    document.getElementById('edit-productos-body').insertAdjacentHTML('beforeend', filaEdicionHtml(id, nombre, cantidad, unidad, precio));
 
     document.getElementById('edit-cant-prod').value            = 1;
     inputEditTexto.value                                       = '';
@@ -733,9 +754,12 @@ function eliminarFilaProducto(btn) {
 
 function recalcularTotalEdicion() {
     let total = 0;
-    document.querySelectorAll('#edit-productos-body tr').forEach(row => {
-        const sub = row.querySelector('.subtotal');
-        if (sub) total += parseFloat(sub.textContent.replace('$', '')) || 0;
+    document.querySelectorAll('#edit-productos-body tr[data-producto-id]').forEach(row => {
+        const cant = parseFloat(row.querySelector('.linea-cant').value) || 0;
+        const prec = parseFloat(row.querySelector('.linea-precio').value) || 0;
+        const sub  = Math.round(cant * prec * 100) / 100;
+        row.querySelector('.subtotal').textContent = '$' + sub.toFixed(2);
+        total += sub;
     });
     document.getElementById('edit-total-modal').textContent = '$' + total.toFixed(2);
 }
@@ -750,17 +774,19 @@ function guardarEdicionPedido() {
     formData.set('id_repartidor', repartidorId);
 
     const productos = [];
+    let lineaInvalida = null;
     document.querySelectorAll('#edit-productos-body tr[data-producto-id]').forEach(row => {
-        const id    = row.dataset.productoId;
-        const input = row.querySelector('.cant-producto, .cant-nueva');
-        if (input && id) {
-            const cantidad = parseFloat(input.value);
-            const precio   = parseFloat(input.dataset.precio);
-            if (!isNaN(cantidad) && cantidad > 0) productos.push({ id, cantidad, precio });
+        const cantidad = parseFloat(row.querySelector('.linea-cant').value);
+        const precio   = parseFloat(row.querySelector('.linea-precio').value);
+        if (isNaN(cantidad) || cantidad <= 0 || isNaN(precio) || precio <= 0) {
+            lineaInvalida = lineaInvalida || row.cells[0].textContent.trim();
+            return;
         }
+        productos.push({ id: row.dataset.productoId, cantidad, precio, unidad: row.dataset.unidad });
     });
 
     if (!clienteId)             { Swal.fire('Error', 'Seleccione un cliente', 'error');         return; }
+    if (lineaInvalida)          { Swal.fire('Revisa el pedido', `"${lineaInvalida}" necesita cantidad y precio mayores a $0.`, 'error'); return; }
     if (productos.length === 0) { Swal.fire('Error', 'Agregue al menos un producto', 'error'); return; }
 
     formData.append('productos', JSON.stringify(productos));
@@ -907,6 +933,19 @@ function eliminarProducto(index) {
     renderizarProductos();
 }
 
+function cambiarPrecioNuevo(index, valor) {
+    const p      = productosSeleccionados[index];
+    const precio = parseFloat(valor);
+    if (!p || isNaN(precio) || precio <= 0) {
+        Swal.fire('Precio no válido', 'El precio debe ser mayor a $0.', 'warning');
+        renderizarProductos();
+        return;
+    }
+    p.precio = Math.round(precio * 100) / 100;
+    p.sub    = p.cant * p.precio;
+    renderizarProductos();
+}
+
 function renderizarProductos() {
     const body = document.getElementById('lista-productos-body');
     if (!body) return;
@@ -921,14 +960,19 @@ function renderizarProductos() {
     productosSeleccionados.forEach((p, i) => {
         total += p.sub;
         html  += `<tr class="border-b">
-            <td class="py-2 text-left font-medium">${p.nombre}</td>
+            <td class="py-2 text-left font-medium">${escHtml(p.nombre)}</td>
             <td class="py-2 text-center">${p.cant}</td>
-            <td class="py-2 text-center">${p.unidad}</td>
-            <td class="py-2 text-right">$${p.precio.toFixed(2)}</td>
+            <td class="py-2 text-center">${escHtml(p.unidad)}</td>
+            <td class="py-2 text-right">
+                <input type="number" value="${p.precio.toFixed(2)}" min="0.01" step="0.01"
+                    class="w-24 p-1 border rounded text-right border-amber-300 bg-amber-50"
+                    aria-label="Precio unitario de ${escHtml(p.nombre)}"
+                    onchange="cambiarPrecioNuevo(${i}, this.value)">
+            </td>
             <td class="py-2 text-right font-bold">$${p.sub.toFixed(2)}</td>
             <td class="py-2 text-center">
-                <button type="button" onclick="eliminarProducto(${i})" class="text-rose-500 hover:text-rose-700">
-                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                <button type="button" onclick="eliminarProducto(${i})" aria-label="Quitar ${escHtml(p.nombre)}" class="text-rose-500 hover:text-rose-700">
+                    <i data-lucide="trash-2" class="w-4 h-4" aria-hidden="true"></i>
                 </button>
             </td>
         </tr>`;

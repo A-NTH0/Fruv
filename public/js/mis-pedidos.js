@@ -109,6 +109,42 @@ async function abonarPedido(id) {
     sondearEstados(true);   // el saldo se actualiza al instante
 }
 
+/* ───────── Total y productos (RF-12: la tienda puede ajustar precios, p. ej. precio preferencial) ───────── */
+function cantidadTexto(n) {
+    return String(parseFloat(n) || 0);
+}
+
+/** Actualiza el total y la lista de productos. Devuelve true si el total cambió. */
+function actualizarMontos(card, e) {
+    if (e.total === undefined) return false;
+
+    let cambioTotal = false;
+    const nuevo    = (parseFloat(e.total) || 0).toFixed(2);
+    const anterior = card.dataset.total;
+
+    if (anterior !== nuevo) {
+        const totalEl = card.querySelector('.js-total');
+        if (totalEl) totalEl.textContent = dinero(nuevo);
+        card.dataset.total = nuevo;
+        cambioTotal = anterior !== undefined && anterior !== '';
+    }
+
+    const lista  = card.querySelector('.js-prods-lista');
+    const cuenta = card.querySelector('.js-prods-count');
+    if (lista && Array.isArray(e.productos)) {
+        const firma = JSON.stringify(e.productos);
+        if (card.dataset.prods !== firma) {
+            card.dataset.prods = firma;
+            lista.innerHTML = e.productos.map(p =>
+                `<li><span>${escHtml(p.nombre)} <small>× ${cantidadTexto(p.cantidad)} ${escHtml(p.unidad)}</small></span><strong>${dinero(p.total)}</strong></li>`
+            ).join('');
+            if (cuenta) cuenta.textContent = e.productos.length;
+        }
+    }
+
+    return cambioTotal;
+}
+
 /* ───────── Estado ───────── */
 function aplicarEstado(id, e) {
     const card = document.querySelector(`.pedido-card[data-id="${id}"]`);
@@ -142,10 +178,13 @@ function aplicarEstado(id, e) {
     if (act) act.textContent = e.actualizado ? 'Actualizado: ' + e.actualizado : '';
 
     actualizarInfo(card, e);
+    const cambioTotal = actualizarMontos(card, e);
 
     if (cambio) {
         Swal.fire({ toast: true, position: 'top-end', icon: e.clave === 'cancelado' ? 'warning' : 'info', timer: 5000, timerProgressBar: true,
             showConfirmButton: false, title: `Pedido #${id}: ${e.texto}` });
+    } else if (cambioTotal) {
+        toast('info', `Pedido #${id}: la tienda actualizó los precios. Nuevo total: ${dinero(e.total)}`);
     }
 }
 

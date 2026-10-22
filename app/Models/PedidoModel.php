@@ -476,7 +476,7 @@ class PedidoModel extends Model
         if (!$pedido) return null;
 
         $pedido['detalles'] = $db->table('producto_pedido pp')
-            ->select('pp.cantidad, pp.precio_venta, p.nombre as nombre_producto, pp.unidad_venta, pp.total')
+            ->select('pp.id_producto3, pp.cantidad, pp.precio_venta, p.nombre as nombre_producto, pp.unidad_venta, pp.total')
             ->join('producto p', 'pp.id_producto3 = p.id_producto')
             ->where('pp.id_pedido1', $idPedido)
             ->get()

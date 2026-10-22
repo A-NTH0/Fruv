@@ -3,8 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Iniciar sesión</title>
+    <title>Iniciar sesión - Fruver</title>
     <link rel="stylesheet" href="<?= base_url('css/login.css?v=' . filemtime(FCPATH . 'css/login.css')) ?>">
+    <link rel="stylesheet" href="<?= base_url('css/accesibilidad.css') ?>">
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,42 +18,51 @@
   </head>
 
   <body>
+    <?php $hayErrores = isset($error) || isset($validation); ?>
 
-    <div class="glass-card">
+    <main class="glass-card">
         <div class="left-side">
             <div class="header-block">
-                <h2>Bienvenido</h2>
+                <h2 role="heading" aria-level="1">Bienvenido</h2>
                 <p class="subtitle">Inicia sesión para continuar</p>
             </div>
 
-            <?php if (isset($error)): ?>
-                <p class="form-message" role="alert"><?= esc($error) ?></p>
-            <?php endif; ?>
-            <?php if (isset($validation)): ?>
-                <div class="form-message" role="alert">
-                    <?php foreach ($validation->getErrors() as $message): ?>
-                        <p><?= esc($message) ?></p>
-                    <?php endforeach; ?>
+            <?php if ($hayErrores): ?>
+                <div id="login-errores" role="alert">
+                    <?php if (isset($error)): ?>
+                        <p class="form-message"><?= esc($error) ?></p>
+                    <?php endif; ?>
+                    <?php if (isset($validation)): ?>
+                        <div class="form-message">
+                            <?php foreach ($validation->getErrors() as $message): ?>
+                                <p><?= esc($message) ?></p>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
 
             <form id="loginForm" action="<?= base_url('login') ?>" method="post">
 
                 <div class="input-group">
-                    <i class="fa-regular fa-envelope"></i>
-
-                    <input type="email" name="email" placeholder="Correo electrónico" value="<?= esc($email ?? '') ?>" autocomplete="email" required>
+                    <i class="fa-regular fa-envelope" aria-hidden="true"></i>
+                    <label for="login-email" class="sr-only">Correo electrónico</label>
+                    <input type="email" id="login-email" name="email" placeholder="Correo electrónico"
+                           value="<?= esc($email ?? '') ?>" autocomplete="email" required
+                           <?= $hayErrores ? 'aria-invalid="true" aria-describedby="login-errores"' : '' ?>>
                 </div>
 
                 <div class="input-group">
-                    <i class="fa-solid fa-lock"></i>
-
-                    <input type="password" name="contrasena" placeholder="Contraseña" autocomplete="current-password" required>
+                    <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                    <label for="login-contrasena" class="sr-only">Contraseña</label>
+                    <input type="password" id="login-contrasena" name="contrasena" placeholder="Contraseña"
+                           autocomplete="current-password" required
+                           <?= $hayErrores ? 'aria-invalid="true" aria-describedby="login-errores"' : '' ?>>
                 </div>
 
                 <button type="submit" class="login-btn" data-loading-label="Iniciando sesión...">Iniciar sesión</button>
             </form>
         </div>
-    </div>
+    </main>
   </body>
 </html>

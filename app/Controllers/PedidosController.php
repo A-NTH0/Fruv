@@ -90,31 +90,88 @@ class PedidosController extends BaseController
         ]);
     }
 
+    /**
+     * RF-12: el precio de cada línea es editable (p. ej. precio preferencial), así que el servidor
+     * valida las líneas y recalcula el total; ya no confía en el total que manda el navegador.
+     *
+     * @param mixed $crudo JSON ya decodificado de "productos"
+     * @return array{0: array<int, array>, 1: float, 2: ?string} [líneas, total, mensaje de error]
+     */
+    private function normalizarProductos($crudo): array
+    {
+        if (! is_array($crudo) || $crudo === []) {
+            return [[], 0.0, 'Agrega al menos un producto.'];
+        }
+
+        $db       = db_connect();
+        $unidades = ['kilos', 'domos', 'ramos'];
+        $lineas   = [];
+        $total    = 0.0;
+
+        foreach ($crudo as $p) {
+            $id       = (int) ($p['id'] ?? 0);
+            $cantidad = round((float) ($p['cantidad'] ?? 0), 2);
+            $precio   = round((float) ($p['precio'] ?? 0), 2);
+
+            if ($id <= 0) {
+                return [[], 0.0, 'Hay un producto no válido en el pedido.'];
+            }
+
+            if ($cantidad <= 0 || $cantidad > 100000) {
+                return [[], 0.0, 'Hay un producto con una cantidad no válida.'];
+            }
+
+            if ($precio <= 0 || $precio > 1000000) {
+                return [[], 0.0, 'Hay un producto con un precio no válido (debe ser mayor a $0).'];
+            }
+
+            $producto = $db->table('producto')->select('unidad_venta')->where('id_producto', $id)->get()->getRowArray();
+
+            if (! $producto) {
+                return [[], 0.0, 'Uno de los productos ya no existe.'];
+            }
+
+            $unidad = (string) ($p['unidad'] ?? '');
+
+            if (! in_array($unidad, $unidades, true)) {
+                $unidad = $producto['unidad_venta'];
+            }
+
+            $total   += round($cantidad * $precio, 2);
+            $lineas[] = ['id' => $id, 'cantidad' => $cantidad, 'precio' => $precio, 'unidad' => $unidad];
+        }
+
+        return [$lineas, round($total, 2), null];
+    }
+
     public function guardar()
     {
-        $pedidoModel    = new PedidoModel();
-        $modalidad      = $this->request->getPost('modalidad_pago') === 'credito' ? 'credito' : 'contado';
-        $total          = floatval($this->request->getPost('total'));
-        $productos      = json_decode($this->request->getPost('productos'), true) ?? [];
+        $pedidoModel = new PedidoModel();
+        $modalidad   = $this->request->getPost('modalidad_pago') === 'credito' ? 'credito' : 'contado';
 
+        // RF-12: precios editables → el servidor valida las líneas y calcula el total.
+        [$productos, $total, $errorLineas] = $this->normalizarProductos(
+            json_decode((string) $this->request->getPost('productos'), true)
+        );
 
-        if (!empty($productos) && $total == 0) {
-            foreach ($productos as $prod) {
-                $total += $prod['cantidad'] * $prod['precio'];
-            }
+        if ($errorLineas !== null) {
+            return $this->response->setJSON(['success' => false, 'message' => $errorLineas]);
         }
-        $total = round($total, 2);
 
         // De contado: el total completo se toma como pagado. A crédito: pago inicial desde $0.
         if ($modalidad === 'credito') {
             $pagoInicial = floatval($this->request->getPost('pago_inicial'));
+
             if ($pagoInicial < 0) {
                 return $this->response->setJSON(['success' => false, 'message' => 'El pago inicial no puede ser negativo.']);
             }
+
             $pagoInicial = round($pagoInicial, 2);
+
             if ($pagoInicial > $total) {
                 return $this->response->setJSON(['success' => false, 'message' => 'El pago inicial no puede superar el total del pedido ($' . number_format($total, 2) . ').']);
             }
+
             $deuda = round($total - $pagoInicial, 2);
         } else {
             $pagoInicial = $total;
@@ -137,7 +194,6 @@ class PedidosController extends BaseController
         ];
 
         $estadoInicial = 'pedido'; // Siempre inicia en pedidos nuevos, sin importar la modalidad
-
 
         $resultado = $pedidoModel->crearPedidoCompleto($dataPedido, $productos, $estadoInicial);
 
@@ -300,9 +356,16 @@ class PedidosController extends BaseController
             return $this->response->setJSON(['success' => false, 'message' => 'Pedido no encontrado']);
         }
 
-        $modalidad  = $this->request->getPost('modalidad_pago') === 'credito' ? 'credito' : 'contado';
-        $total      = round(floatval($this->request->getPost('total')), 2);
-        $productos  = json_decode($this->request->getPost('productos'), true) ?? [];
+        $modalidad = $this->request->getPost('modalidad_pago') === 'credito' ? 'credito' : 'contado';
+
+        // RF-12: precios editables → el servidor valida las líneas y recalcula el total.
+        [$productos, $total, $errorLineas] = $this->normalizarProductos(
+            json_decode((string) $this->request->getPost('productos'), true)
+        );
+
+        if ($errorLineas !== null) {
+            return $this->response->setJSON(['success' => false, 'message' => $errorLineas]);
+        }
 
         // El saldo se recalcula conservando el pago inicial y los abonos ya registrados.
         $anterior = $pedidoModel->find($idPedido);
@@ -327,7 +390,6 @@ class PedidosController extends BaseController
             'deuda_restante'           => $deuda,
             'pago_inicial'             => $pagoInicial,
         ];
-
 
         $ok = $pedidoModel->actualizarPedidoCompleto($idPedido, $updateData, $productos);
 

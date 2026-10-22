@@ -89,12 +89,12 @@ function filaCarrito(i) {
             ${i.ok ? '' : `<span class="warn">${escHtml(i.motivo || 'No disponible')}</span>`}
         </div>
         <div class="qty">
-            <button type="button" onclick="cambiarCantidad(${i.id}, ${i.cantidad - paso})" aria-label="Quitar uno">−</button>
+            <button type="button" onclick="cambiarCantidad(${i.id}, ${i.cantidad - paso})" aria-label="Quitar uno de ${escHtml(i.nombre)}">−</button>
             <input type="number" value="${i.cantidad}" min="${paso}" step="${paso}"
                    onchange="cambiarCantidad(${i.id}, this.value)" aria-label="Cantidad de ${escHtml(i.nombre)}">
-            <button type="button" onclick="cambiarCantidad(${i.id}, ${i.cantidad + paso})" aria-label="Agregar uno">+</button>
+            <button type="button" onclick="cambiarCantidad(${i.id}, ${i.cantidad + paso})" aria-label="Agregar uno de ${escHtml(i.nombre)}">+</button>
         </div>
-        <div class="sub">${dinero(i.subtotal)}<button type="button" class="btn-x" onclick="quitarProducto(${i.id})" title="Quitar">✕</button></div>
+        <div class="sub">${dinero(i.subtotal)}<button type="button" class="btn-x" onclick="quitarProducto(${i.id})" aria-label="Quitar ${escHtml(i.nombre)} del carrito" title="Quitar"><span aria-hidden="true">✕</span></button></div>
     </article>`;
 }
 

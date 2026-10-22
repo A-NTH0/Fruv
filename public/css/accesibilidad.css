@@ -1,0 +1,34 @@
+/* Accesibilidad WCAG 2.1 AA (RNF-01). Se carga después de los demás CSS. */
+
+/* Solo para lectores de pantalla */
+.sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* 2.4.1 Saltar bloques repetidos */
+.skip-link {
+    position: fixed; top: -100px; left: 12px; z-index: 2000;
+    background: #fff; color: #9f1239; font-weight: 700; text-decoration: none;
+    padding: .6rem 1rem; border: 2px solid #9f1239; border-radius: .6rem;
+}
+.skip-link:focus { top: 12px; }
+
+/* 2.4.7 Foco visible */
+:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+.sidebar :focus-visible { outline-color: #fff; }
+.qty input:focus-visible { outline: 3px solid #1d4ed8; outline-offset: -3px; }      /* antes: outline:none */
+.input-group:focus-within { outline: 3px solid #7ec7ff; outline-offset: 3px; }       /* login */
+main:focus { outline: none; }
+
+/* 1.4.3 Contraste de texto (mínimo 4.5:1) */
+main .text-gray-400, main .text-gray-500 { color: #4b5563; }
+main .text-emerald-600 { color: #047857; }
+.stepper .step { color: #64748b; }
+.stepper .step.is-done, .stepper .step.is-current { color: var(--ink, #1e293b); }
+.btn-x { color: #64748b; }
+
+/* 1.4.11 Contraste de componentes (bordes de campos, mínimo 3:1) */
+.sum-field input, .add-cart input, .abono-form input, .qty,
+main input.border-gray-200, main input[type="search"] { border-color: #6b7280; }
+.input-group { border-color: rgba(255, 255, 255, .55); }                              /* login */

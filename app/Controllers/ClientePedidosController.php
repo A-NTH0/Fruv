@@ -21,15 +21,55 @@ class ClientePedidosController extends BaseController
         ]);
     }
 
-    /** Endpoint de sondeo: devuelve el estado actual de los pedidos visibles. */
+    /**
+     * Endpoint de sondeo: devuelve el estado actual de los pedidos visibles.
+     * RF-12: también devuelve el total y los productos vigentes, para que el cliente vea
+     * sin recargar la página cuando la tienda ajusta los precios (p. ej. precio preferencial).
+     */
     public function estados()
     {
-        $ids = array_values(array_filter(array_map('intval', explode(',', (string) $this->request->getGet('ids')))));
-        $ids = array_slice($ids, 0, 50);
+        $idCliente = (int) session()->get('cliente_id');
+        $ids       = array_values(array_filter(array_map('intval', explode(',', (string) $this->request->getGet('ids')))));
+        $ids       = array_slice($ids, 0, 50);
+
+        $estados = (new PedidoClienteModel())->getEstadosPorIds($idCliente, $ids);
+
+        if ($estados !== []) {
+            $db         = \Config\Database::connect();
+            $idsValidos = array_map('intval', array_keys($estados));
+
+            // Solo pedidos del propio cliente (RNF-05).
+            $totales = $db->table('pedido')
+                ->select('id_pedido, total')
+                ->where('id_cliente1', $idCliente)
+                ->whereIn('id_pedido', $idsValidos)
+                ->get()->getResultArray();
+
+            foreach ($totales as $t) {
+                $estados[(int) $t['id_pedido']]['total']     = round((float) $t['total'], 2);
+                $estados[(int) $t['id_pedido']]['productos'] = [];
+            }
+
+            $lineas = $db->table('producto_pedido pp')
+                ->select('pp.id_pedido1, pp.cantidad, pp.unidad_venta, pp.total, pr.nombre AS nombre_producto')
+                ->join('producto pr', 'pr.id_producto = pp.id_producto3')
+                ->whereIn('pp.id_pedido1', $idsValidos)
+                ->orderBy('pp.id_pedido1')
+                ->get()->getResultArray();
+
+            foreach ($lineas as $l) {
+                $estados[(int) $l['id_pedido1']]['productos'][] = [
+                    'nombre'   => $l['nombre_producto'],
+                    'cantidad' => (float) $l['cantidad'],
+                    'unidad'   => $l['unidad_venta'],
+                    'total'    => round((float) $l['total'], 2),
+                ];
+            }
+        }
 
         return $this->response->setJSON([
-            'success'  => true,
-            'estados'  => (new PedidoClienteModel())->getEstadosPorIds((int) session()->get('cliente_id'), $ids),
+            'success' => true,
+            'estados' => $estados,
         ]);
     }
 
