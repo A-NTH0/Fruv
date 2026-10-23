@@ -8,7 +8,11 @@ use CodeIgniter\Router\RouteCollection;
 
 $routes->get('login', 'LogingController::login');
 $routes->post('login', 'LogingController::autenticar');
+$routes->get('login/mfa', 'LogingController::mostrarMfa');
+$routes->post('login/mfa', 'LogingController::verificarMfa');
 $routes->get('logout', 'LogingController::cerrarSesion');
+$routes->get('seguridad', 'MfaController::index');
+$routes->post('seguridad/codigos-recuperacion', 'MfaController::regenerarCodigos');
 $routes->get('/', 'LogingController::login');
 $routes->get('dashboard', 'HomeController::index');
 

@@ -14,7 +14,7 @@
 
 <aside class="sidebar" id="menuLateral">
     <a class="app-brand" href="<?= base_url($esCliente ? 'productos' : ($esVendedor ? 'clientes' : 'dashboard')) ?>">
-        <span class="app-brand-name">🍓 Fruver App</span>
+        <span class="app-brand-name">Fruver App</span>
         <span class="app-brand-role">
             <?= $esCliente ? 'Tienda en línea' : ($esVendedor ? 'Portal de vendedor' : 'Sistema de gestión') ?>
         </span>
@@ -43,6 +43,10 @@
             <a href="<?= base_url('clientes') ?>" class="nav-item <?= $pagina_actual === 'clientes' ? 'active' : '' ?>"<?= $actual($pagina_actual === 'clientes') ?>>
                 <i data-lucide="users" class="w-4 h-4" aria-hidden="true"></i>
                 <span>Catálogo de clientes</span>
+            </a>
+            <a href="<?= base_url('seguridad') ?>" class="nav-item <?= $pagina_actual === 'seguridad' ? 'active' : '' ?>"<?= $actual($pagina_actual === 'seguridad') ?>>
+                <i data-lucide="shield-check" class="w-4 h-4" aria-hidden="true"></i>
+                <span>Seguridad</span>
             </a>
         <?php else: ?>
             <a href="<?= base_url('dashboard') ?>"
@@ -86,6 +90,11 @@
                 <i data-lucide="user-round-cog" class="w-4 h-4" aria-hidden="true"></i>
                 <span>Vendedores</span>
             </a>
+            <a href="<?= base_url('seguridad') ?>"
+               class="nav-item <?= ($pagina_actual == 'seguridad') ? 'active' : '' ?>"<?= $actual($pagina_actual == 'seguridad') ?>>
+                <i data-lucide="shield-check" class="w-4 h-4" aria-hidden="true"></i>
+                <span>Seguridad</span>
+            </a>
         <?php endif; ?>
         <a href="<?= base_url('logout') ?>" class="nav-item mt-auto">
             <i data-lucide="log-out" class="w-4 h-4" aria-hidden="true"></i>
@@ -96,7 +105,9 @@
 
 <script src="https://unpkg.com/lucide@latest"></script>
 <script>
-  lucide.createIcons();
+  if (window.lucide) {
+      window.lucide.createIcons();
+  }
   const principal = document.querySelector('main');
   const salto = document.querySelector('.skip-link');
   if (principal && salto) {
@@ -106,6 +117,24 @@
   } else if (salto) {
       salto.remove();
   }
+
+  const inactividadMaxima = 10 * 60 * 1000;
+  let ultimaActividad = Date.now();
+  let redireccionandoPorInactividad = false;
+  const registrarActividad = () => {
+      ultimaActividad = Date.now();
+  };
+  const revisarInactividad = () => {
+      if (!redireccionandoPorInactividad && Date.now() - ultimaActividad >= inactividadMaxima) {
+          redireccionandoPorInactividad = true;
+          window.location.assign('<?= esc(base_url('logout'), 'js') ?>');
+      }
+  };
+
+  ['pointerdown', 'pointermove', 'keydown', 'scroll', 'touchstart'].forEach((evento) => {
+      document.addEventListener(evento, registrarActividad, { passive: true });
+  });
+  window.setInterval(revisarInactividad, 1000);
 </script>
 
 <style>

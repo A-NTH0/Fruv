@@ -111,7 +111,7 @@ $carritoPorId = array_column($carrito, null, 'id');
                     </div>
                     <div class="vendor-checkout-submit">
                         <span>Total del pedido <strong>$<?= number_format($totalCarrito, 2) ?></strong></span>
-                        <button type="submit">Enviar pedido al administrador</button>
+                        <button type="submit">Generar pedido</button>
                     </div>
                 </form>
             <?php endif; ?>

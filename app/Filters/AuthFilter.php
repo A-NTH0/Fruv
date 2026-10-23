@@ -32,17 +32,22 @@ class AuthFilter implements FilterInterface
         }
 
         if ($rol === 'vendedor') {
-            $vigente = db_connect()->table('vendedor')
+            $vendedor = db_connect()->table('vendedor')
                 ->where('id', (int) $session->get('vendedor_id'))
-                ->countAllResults() > 0;
+                ->get()
+                ->getRowArray();
 
-            if (! $vigente) {
+            if ($vendedor === null || (int) ($vendedor['mfa_enabled'] ?? 0) !== 1) {
                 $session->destroy();
 
                 return redirect()->to(base_url('login'));
             }
 
             $esLogout = $segments === ['logout'];
+            $esSeguridad = $segments === ['seguridad']
+                && in_array(strtoupper($request->getMethod()), ['GET', 'HEAD'], true);
+            $esRegenerarCodigos = strtoupper($request->getMethod()) === 'POST'
+                && $segments === ['seguridad', 'codigos-recuperacion'];
             $esCatalogo = strtoupper($request->getMethod()) === 'GET'
                 && $segments === ['clientes'];
             $esHistorial = strtoupper($request->getMethod()) === 'GET'
@@ -72,7 +77,8 @@ class AuthFilter implements FilterInterface
             $esEnviarPedido = strtoupper($request->getMethod()) === 'POST'
                 && $segments === ['clientes', 'pedido', 'enviar'];
 
-            if (! $esLogout && ! $esCatalogo && ! $esHistorial && ! $esRecarga
+            if (! $esLogout && ! $esSeguridad && ! $esRegenerarCodigos
+                && ! $esCatalogo && ! $esHistorial && ! $esRecarga
                 && ! $esCatalogoPedido && ! $esNuevoPedido && ! $esAccionPedido && ! $esActualizarPedido && ! $esQuitarPedido && ! $esEnviarPedido) {
                 return redirect()->to(base_url('clientes'));
             }
@@ -82,6 +88,19 @@ class AuthFilter implements FilterInterface
 
         if ($rol !== 'admin' && in_array($primero, self::RUTAS_ADMIN, true)) {
             return redirect()->to(base_url('productos'));
+        }
+
+        if ($rol === 'admin') {
+            $admin = db_connect()->table('admin')
+                ->where('email', (string) $session->get('admin_email'))
+                ->get()
+                ->getRowArray();
+
+            if ($admin === null || (int) ($admin['mfa_enabled'] ?? 0) !== 1) {
+                $session->destroy();
+
+                return redirect()->to(base_url('login'));
+            }
         }
 
         // El administrador no usa las rutas del cliente.

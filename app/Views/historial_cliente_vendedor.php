@@ -121,7 +121,7 @@
                                     <p class="vendor-reload-note">Se aplicarán precios actuales y se comprobará la existencia antes de crear el pedido.</p>
                                     <footer class="vendor-reload-actions">
                                         <button type="button" class="btn-ghost" onclick="cerrarRecarga(<?= (int) $pedido['id_pedido'] ?>)">Cancelar</button>
-                                        <button type="submit" class="btn-confirm">Confirmar recarga y enviar al administrador</button>
+                                        <button type="submit" class="btn-confirm">Confirmar recarga</button>
                                     </footer>
                                 </form>
                             </section>
