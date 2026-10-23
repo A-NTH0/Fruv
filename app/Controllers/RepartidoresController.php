@@ -66,6 +66,17 @@ class RepartidoresController extends BaseController
         $idRepartidor = (int) session()->get('repartidor_id');
         $datos        = $this->obtenerDatosEntregas($idRepartidor);
 
+        // RNF-08: si nada cambió desde la última firma del cliente, respuesta mínima.
+        $firmaCliente = (string) $this->request->getGet('firma');
+        if ($firmaCliente !== '' && hash_equals((string) $datos['firma'], $firmaCliente)) {
+            return $this->response->setJSON([
+                'ok'         => true,
+                'sinCambios' => true,
+                'firma'      => $datos['firma'],
+                'timestamp'  => date('H:i:s'),
+            ]);
+        }
+
         return $this->response->setJSON([
             'ok'          => true,
             'stats'       => $datos['stats'],
@@ -359,6 +370,9 @@ class RepartidoresController extends BaseController
                     $enCamino++;
                 }
                 $montoEnRuta += $montoCobrar;
+            } elseif ($esMio && $estado === 'pedido') {
+                // Asignado por el admin antes de confirmarse: visible, sin sumar a ruta ni cobro.
+                $asignados[] = $item;
             } elseif (! $esMio && empty($p['id_repartidor']) && in_array($estado, ['confirmado', 'pedido'], true)) {
                 $disponibles[] = $item;
             } elseif ($esMio && $estado === 'entregado') {
@@ -367,7 +381,7 @@ class RepartidoresController extends BaseController
         }
 
         $stats = [
-            'activos'      => count($asignados),
+            'activos'      => $porRecoger + $enCamino,
             'por_recoger'  => $porRecoger,
             'en_camino'    => $enCamino,
             'disponibles'  => count($disponibles),

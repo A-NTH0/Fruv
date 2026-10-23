@@ -360,31 +360,66 @@ function filtrarTarjetasKanbanLocal(q) {
     });
 }
 
-/* ───────── Aviso de pedidos nuevos (sondeo cada 20 s) ───────── */
+/* ───────── Sondeo en vivo: contadores, aviso de nuevos y tarjetas que se mueven solas ───────── */
+const INTERVALO_TABLERO_MS = 10000;
+const ESTADO_A_STAT = {
+    pedido: 'nuevo', confirmado: 'confirmado', en_transito: 'transito',
+    entregado: 'completado', credito: 'credito', pagado: 'pagado', cancelado: 'cancelado',
+};
 let ultimoNuevo = 0;
+let ultimosTotales = null; // línea base tomada del primer sondeo
+
+// Recarga solo una columna del kanban (conserva su página actual).
+async function refrescarColumna(estado) {
+    let pagina = (typeof paginaActualPorEstado !== 'undefined' && paginaActualPorEstado[estado]) || 1;
+    let data;
+    for (let intento = 0; intento < 2; intento++) {
+        const res = await fetch(`${BASE_URL}pedidos/getPedidosPaginados?estado=${estado}&page=${pagina}&per_page=10`);
+        data = await res.json();
+        if (!data.success) return false;
+        if (pagina > data.totalPages) { pagina = data.totalPages; continue; } // la página se quedó vacía
+        break;
+    }
+    if (typeof paginaActualPorEstado !== 'undefined') paginaActualPorEstado[estado] = pagina;
+    actualizarColumnaKanban(estado, data.pedidos, pagina, data.totalPages, data.total);
+    return true;
+}
 
 function iniciarSondeoPedidos() {
     const el = document.querySelector('.stat-value[data-stat="nuevo"]');
     ultimoNuevo = el ? parseInt(el.textContent, 10) || 0 : 0;
 
     setInterval(async () => {
-        if (document.hidden) return;
+        if (document.hidden || (window.Swal && Swal.isVisible())) return;
         try {
             const res  = await fetch(BASE_URL + 'pedidos/getStatsActualizados');
             const data = await res.json();
             if (!data.success) return;
 
             actualizarStatsUI(data.stats);
+
             const nuevo = parseInt(data.stats.nuevo, 10) || 0;
             if (nuevo > ultimoNuevo) {
                 Swal.fire({
                     toast: true, position: 'top-end', icon: 'info', title: 'Llegó un nuevo pedido',
-                    showConfirmButton: true, confirmButtonText: 'Actualizar', timer: 15000, timerProgressBar: true,
-                }).then(r => { if (r.isConfirmed) location.reload(); });
+                    showConfirmButton: false, timer: 4000, timerProgressBar: true,
+                });
             }
             ultimoNuevo = nuevo;
+
+            // Columnas cuyo total cambió (p. ej. el repartidor puso "En camino"): se redibujan solas.
+            const actuales = {};
+            Object.entries(ESTADO_A_STAT).forEach(([estado, clave]) => {
+                actuales[estado] = parseInt(data.stats[clave], 10) || 0;
+            });
+            if (ultimosTotales === null) { ultimosTotales = actuales; return; }
+
+            const cambiadas = Object.keys(actuales).filter(e => actuales[e] !== ultimosTotales[e]);
+            for (const estado of cambiadas) {
+                if (await refrescarColumna(estado)) ultimosTotales[estado] = actuales[estado];
+            }
         } catch (e) { /* se reintenta en el siguiente ciclo */ }
-    }, 20000);
+    }, INTERVALO_TABLERO_MS);
 }
 
 let busquedaPedidosTimer;

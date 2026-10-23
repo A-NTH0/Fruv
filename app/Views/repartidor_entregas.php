@@ -26,7 +26,7 @@
                     </p>
                 </div>
 
-                <div class="flex items-center gap-3 self-start sm:self-auto">
+                <div class="flex flex-wrap items-center gap-3 self-start sm:self-auto">
                     <div class="inline-flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 text-xs font-bold text-emerald-800">
                         <span class="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-ping"></span>
                         <span>Avistamiento activo · <span id="sync-hora"><?= date('H:i:s') ?></span></span>

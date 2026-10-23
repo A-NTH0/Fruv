@@ -104,6 +104,11 @@ function crearTarjetaPedido(p, tipoSeccion) {
                         class="rep-action-btn bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
                     <i data-lucide="check-circle" class="w-4 h-4"></i> Confirmar Entrega
                 </button>`;
+        } else if (p.estado === 'pedido') {
+            botonPrimario = `
+                <span class="rep-action-btn bg-amber-50 text-amber-800 border border-amber-200 cursor-default">
+                    <i data-lucide="clock" class="w-4 h-4"></i> Asignado a ti · Esperando confirmación de Admin
+                </span>`;
         }
     } else if (tipoSeccion === 'disponibles') {
         if (p.estado === 'confirmado') {
@@ -251,6 +256,7 @@ function actualizarBadgesMenu(asigCount, dispCount) {
         bDisp.textContent = dispCount;
         bDisp.style.display = dispCount > 0 ? '' : 'none';
     }
+    document.title = dispCount > 0 ? `(${dispCount}) ${tituloBase}` : tituloBase;
 }
 
 function cambiarVistaRep(vista) {
@@ -260,6 +266,8 @@ function cambiarVistaRep(vista) {
         document.getElementById('nav-rep-' + v)?.classList.toggle('active', v === vista);
     });
     document.getElementById('buscador-wrapper')?.classList.toggle('hidden', vista === 'perfil');
+    // Móvil: mantener visible la opción activa del menú horizontal (RNF-07)
+    document.getElementById('nav-rep-' + vista)?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
 }
 
 async function cambiarEstadoPedido(idPedido, nuevoEstado) {
@@ -320,15 +328,36 @@ async function tomarPedidoDisponible(idPedido) {
     }
 }
 
+const SONDEO_MS = 8000;
+let sondeoTimer  = null;
+let sincronizando = false;
+let tituloBase   = document.title;
+
+function marcarConexion(ok) {
+    const pill = document.getElementById('sync-hora')?.parentElement;
+    if (!pill) return;
+    pill.classList.toggle('opacity-60', !ok);
+    if (!ok) document.getElementById('sync-hora').textContent = 'sin conexión';
+}
+
 async function sincronizarPedidos(mostrarToastManual = false) {
+    if (sincronizando) return;
+    sincronizando = true;
     try {
-        const res = await fetch(BASE_URL + 'repartidores/actualizaciones', {
-            headers: { 'Accept': 'application/json' }
-        });
-        if (!res.ok) return;
+        const url = BASE_URL + 'repartidores/actualizaciones'
+                  + (mostrarToastManual || !firmaActual ? '' : '?firma=' + encodeURIComponent(firmaActual));
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) { marcarConexion(false); return; }
         const data = await res.json();
         if (!data.ok) return;
+        marcarConexion(true);
 
+        if (data.sinCambios) {
+            document.getElementById('sync-hora').textContent = data.timestamp;
+            return;
+        }
+
+        const idsPrevios = new Set(DATA_DISPONIBLES.map(p => p.id_pedido));
         const habiaCambio = firmaActual && data.firma !== firmaActual;
         firmaActual = data.firma;
 
@@ -346,14 +375,25 @@ async function sincronizarPedidos(mostrarToastManual = false) {
         actualizarBadgesMenu(DATA_ASIGNADOS.length, DATA_DISPONIBLES.length);
         renderizarVistas();
 
-        if (habiaCambio && !mostrarToastManual) {
+        const nuevos = DATA_DISPONIBLES.filter(p => !idsPrevios.has(p.id_pedido) && p.estado === 'confirmado').length;
+        if (nuevos > 0 && !mostrarToastManual) {
             Swal.fire({
                 toast: true,
                 position: 'top-end',
                 icon: 'info',
-                title: '¡Nuevos pedidos o cambios de estado detectados!',
+                title: nuevos === 1 ? '¡Nuevo pedido disponible para tu rol!' : `¡${nuevos} nuevos pedidos disponibles!`,
                 showConfirmButton: false,
-                timer: 3000
+                timer: 4000
+            });
+            if (navigator.vibrate) navigator.vibrate(200);
+        } else if (habiaCambio && !mostrarToastManual) {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'info',
+                title: 'Hubo cambios en tus pedidos',
+                showConfirmButton: false,
+                timer: 2500
             });
         } else if (mostrarToastManual) {
             Swal.fire({
@@ -366,10 +406,32 @@ async function sincronizarPedidos(mostrarToastManual = false) {
             });
         }
     } catch (e) {
+        marcarConexion(false);
         console.error('Error al sincronizar entregas:', e);
+    } finally {
+        sincronizando = false;
     }
 }
 
+// Sondeo adaptativo: se pausa con la pestaña oculta y se reanuda al volver (RNF-08)
+function programarSondeo() {
+    clearTimeout(sondeoTimer);
+    if (document.hidden) return;
+    sondeoTimer = setTimeout(async () => {
+        await sincronizarPedidos(false);
+        programarSondeo();
+    }, SONDEO_MS);
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        clearTimeout(sondeoTimer);
+    } else {
+        sincronizarPedidos(false).then(programarSondeo);
+    }
+});
+
+// Exponer funciones al objeto global para eventos onclick del menú y tarjetas
 window.cambiarVistaRep       = cambiarVistaRep;
 window.renderizarVistas      = renderizarVistas;
 window.sincronizarPedidos    = sincronizarPedidos;
@@ -380,6 +442,6 @@ document.addEventListener('DOMContentLoaded', () => {
     actualizarBadgesMenu(DATA_ASIGNADOS.length, DATA_DISPONIBLES.length);
     renderizarVistas();
     cambiarVistaRep(vistaActual);
-    // Sondeo ligero cada 8 segundos (Funcionalidad 8 y RNF-08)
-    setInterval(() => sincronizarPedidos(false), 8000);
+    // Sondeo ligero y adaptativo (Funcionalidad 8 y RNF-08)
+    programarSondeo();
 });
