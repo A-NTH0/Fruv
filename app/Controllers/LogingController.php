@@ -58,14 +58,9 @@ class LogingController extends BaseController
         }
 
         $repartidor = (new RepartidorModel())->where('email', $email)->first();
-
-if ($repartidor !== null
-    && ! empty($repartidor['hash'])
-    && password_verify($contrasena, $repartidor['hash'])
-) {
-    $this->completarAutenticacion('repartidor', $repartidor); // setea repartidor_id, repartidor_nombre, auth_role, isLoggedIn
-    return redirect()->to(base_url('repartidores'));
-}
+        if ($repartidor !== null && ! empty($repartidor['hash']) && password_verify($contrasena, $repartidor['hash'])) {
+            return $this->iniciarVerificacionCorreo('repartidor', $repartidor);
+        }
 
         $cliente = (new ClienteModel())
             ->where('email', $email)

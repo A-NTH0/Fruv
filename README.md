@@ -34,11 +34,11 @@ The application login is served at `/` (or `/login`).
 
 ## Verificación del primer inicio de sesión
 
-La primera vez que un administrador, vendedor o cliente inicia sesión, Fruver
-envía un código de seis dígitos al correo registrado. El código vence en 10
-minutos; después de verificarlo, los accesos siguientes solo requieren correo y
-contraseña. Tras configurar las credenciales SMTP de correo en `.env`, aplica
-los cambios de esquema con `php spark migrate`.
+La primera vez que un administrador, vendedor, repartidor o cliente inicia
+sesión, Fruver envía un código de seis dígitos al correo registrado. El código
+vence en 10 minutos; después de verificarlo, los accesos siguientes solo
+requieren correo y contraseña. Tras configurar las credenciales SMTP de correo
+en `.env`, aplica los cambios de esquema con `php spark migrate`.
 
 ## Important Change with index.php
 

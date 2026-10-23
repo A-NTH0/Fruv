@@ -6,7 +6,22 @@ class RepartidorModel extends Model
 {
     protected $table         = 'repartidor';
     protected $primaryKey    = 'id_repartidor';
-    protected $allowedFields = ['nombre', 'ap_paterno', 'ap_materno', 'telefono', 'direccion', 'notas', 'email', 'hash'];
+    protected $allowedFields = [
+        'nombre',
+        'ap_paterno',
+        'ap_materno',
+        'telefono',
+        'direccion',
+        'notas',
+        'email',
+        'hash',
+        'email_verified_at',
+        'email_verification_code_hash',
+        'email_verification_expires_at',
+        'email_verification_sent_at',
+        'email_verification_attempts',
+        'email_verification_locked_until',
+    ];
 
 
     public function tienePedidos(int $idRepartidor): bool
