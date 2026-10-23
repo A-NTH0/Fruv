@@ -25,10 +25,35 @@ class AuthFilter implements FilterInterface
         $esRutaCliente = in_array($primero, self::RUTAS_CLIENTE, true);
 
         // Falla cerrado: un rol desconocido nunca hereda permisos de administrador.
-        if (! in_array($rol, ['admin', 'cliente', 'vendedor'], true)) {
+        if (! in_array($rol, ['admin', 'cliente', 'vendedor', 'repartidor'], true)) {
             $session->destroy();
 
             return redirect()->to(base_url('login'));
+        }
+
+        if ($rol === 'repartidor') {
+            $repartidor = db_connect()->table('repartidor')
+                ->where('id_repartidor', (int) $session->get('repartidor_id'))
+                ->get()
+                ->getRowArray();
+
+            if ($repartidor === null) {
+                $session->destroy();
+
+                return redirect()->to(base_url('login'));
+            }
+
+            $esLogout          = $segments === ['logout'];
+            $esPortal          = strtoupper($request->getMethod()) === 'GET' && $segments === ['repartidores'];
+            $esActualizaciones = strtoupper($request->getMethod()) === 'GET' && $segments === ['repartidores', 'actualizaciones'];
+            $esCambiarEstado   = strtoupper($request->getMethod()) === 'POST' && $segments === ['repartidores', 'cambiar-estado'];
+            $esTomarPedido     = strtoupper($request->getMethod()) === 'POST' && $segments === ['repartidores', 'tomar-pedido'];
+
+            if (! $esLogout && ! $esPortal && ! $esActualizaciones && ! $esCambiarEstado && ! $esTomarPedido) {
+                return redirect()->to(base_url('repartidores'));
+            }
+
+            return null;
         }
 
         if ($rol === 'vendedor') {

@@ -3,7 +3,9 @@
     $pagina_actual = $uri->getSegment(1);
     $esCliente     = session()->get('auth_role') === 'cliente';
     $esVendedor    = session()->get('auth_role') === 'vendedor';
+    $esRepartidor  = session()->get('auth_role') === 'repartidor';
     $cantCarrito   = $esCliente ? count(session()->get('carrito') ?? []) : 0;
+    $vistaRep      = service('request')->getGet('vista') ?? 'asignados';
 
     // aria-current="page" en el enlace de la página actual (RNF-01)
     $actual = static fn (bool $activo): string => $activo ? ' aria-current="page"' : '';
@@ -13,10 +15,10 @@
 <a href="#contenido-principal" class="skip-link">Saltar al contenido principal</a>
 
 <aside class="sidebar" id="menuLateral">
-    <a class="app-brand" href="<?= base_url($esCliente ? 'productos' : ($esVendedor ? 'clientes' : 'dashboard')) ?>">
+    <a class="app-brand" href="<?= base_url($esCliente ? 'productos' : ($esVendedor ? 'clientes' : ($esRepartidor ? 'repartidores' : 'dashboard'))) ?>">
         <span class="app-brand-name">Fruver App</span>
         <span class="app-brand-role">
-            <?= $esCliente ? 'Tienda en línea' : ($esVendedor ? 'Portal de vendedor' : 'Sistema de gestión') ?>
+            <?= $esCliente ? 'Tienda en línea' : ($esVendedor ? 'Portal de vendedor' : ($esRepartidor ? 'Portal de repartidor' : 'Sistema de gestión')) ?>
         </span>
     </a>
 
@@ -43,6 +45,25 @@
             <a href="<?= base_url('clientes') ?>" class="nav-item <?= $pagina_actual === 'clientes' ? 'active' : '' ?>"<?= $actual($pagina_actual === 'clientes') ?>>
                 <i data-lucide="users" class="w-4 h-4" aria-hidden="true"></i>
                 <span>Catálogo de clientes</span>
+            </a>
+        <?php elseif ($esRepartidor): ?>
+            <a href="<?= base_url('repartidores?vista=asignados') ?>" id="nav-rep-asignados" onclick="if(window.cambiarVistaRep){event.preventDefault();cambiarVistaRep('asignados');}" class="nav-item <?= $vistaRep === 'asignados' ? 'active' : '' ?>"<?= $actual($vistaRep === 'asignados') ?>>
+                <i data-lucide="truck" class="w-4 h-4" aria-hidden="true"></i>
+                <span>Mis entregas</span>
+                <span id="nav-badge-asignados" class="nav-badge" style="display:none">0</span>
+            </a>
+            <a href="<?= base_url('repartidores?vista=disponibles') ?>" id="nav-rep-disponibles" onclick="if(window.cambiarVistaRep){event.preventDefault();cambiarVistaRep('disponibles');}" class="nav-item <?= $vistaRep === 'disponibles' ? 'active' : '' ?>"<?= $actual($vistaRep === 'disponibles') ?>>
+                <i data-lucide="bell-ring" class="w-4 h-4" aria-hidden="true"></i>
+                <span>Nuevos pedidos</span>
+                <span id="nav-badge-disponibles" class="nav-badge" style="display:none">0</span>
+            </a>
+            <a href="<?= base_url('repartidores?vista=historial') ?>" id="nav-rep-historial" onclick="if(window.cambiarVistaRep){event.preventDefault();cambiarVistaRep('historial');}" class="nav-item <?= $vistaRep === 'historial' ? 'active' : '' ?>"<?= $actual($vistaRep === 'historial') ?>>
+                <i data-lucide="check-circle-2" class="w-4 h-4" aria-hidden="true"></i>
+                <span>Entregados</span>
+            </a>
+            <a href="<?= base_url('repartidores?vista=perfil') ?>" id="nav-rep-perfil" onclick="if(window.cambiarVistaRep){event.preventDefault();cambiarVistaRep('perfil');}" class="nav-item <?= $vistaRep === 'perfil' ? 'active' : '' ?>"<?= $actual($vistaRep === 'perfil') ?>>
+                <i data-lucide="user-circle" class="w-4 h-4" aria-hidden="true"></i>
+                <span>Mi perfil</span>
             </a>
         <?php else: ?>
             <a href="<?= base_url('dashboard') ?>"

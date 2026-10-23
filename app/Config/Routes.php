@@ -49,6 +49,9 @@ $routes->post('repartidores/guardar', 'RepartidoresController::guardar');
 $routes->post('repartidores/actualizar', 'RepartidoresController::actualizar');
 $routes->get('repartidores/verificarEliminar/(:num)', 'RepartidoresController::verificarEliminar/$1');
 $routes->get('repartidores/eliminar/(:num)', 'RepartidoresController::eliminar/$1');
+$routes->get('repartidores/actualizaciones', 'RepartidoresController::actualizaciones');
+$routes->post('repartidores/cambiar-estado', 'RepartidoresController::cambiarEstado');
+$routes->post('repartidores/tomar-pedido', 'RepartidoresController::tomarPedido');
 
 $routes->get('vendedores', 'VendedoresController::index');
 $routes->post('vendedores/guardar', 'VendedoresController::guardar');

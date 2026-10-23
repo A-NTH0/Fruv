@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\AccountCredentials;
 use App\Models\AdminModel;
 use App\Models\ClienteModel;
+use App\Models\RepartidorModel;
 use App\Models\VendedorModel;
 use CodeIgniter\HTTP\RedirectResponse;
 
@@ -55,6 +56,16 @@ class LogingController extends BaseController
         if ($vendedor !== null && isset($vendedor['hash']) && password_verify($contrasena, $vendedor['hash'])) {
             return $this->iniciarVerificacionCorreo('vendedor', $vendedor);
         }
+
+        $repartidor = (new RepartidorModel())->where('email', $email)->first();
+
+if ($repartidor !== null
+    && ! empty($repartidor['hash'])
+    && password_verify($contrasena, $repartidor['hash'])
+) {
+    $this->completarAutenticacion('repartidor', $repartidor); // setea repartidor_id, repartidor_nombre, auth_role, isLoggedIn
+    return redirect()->to(base_url('repartidores'));
+}
 
         $cliente = (new ClienteModel())
             ->where('email', $email)
@@ -117,7 +128,7 @@ class LogingController extends BaseController
             return redirect()->to(base_url('login'));
         }
 
-        if (! empty($account['email_verified_at'])) {
+        if (! array_key_exists('email_verified_at', $account) || ! empty($account['email_verified_at'])) {
             $this->completarAutenticacion((string) $pending['role'], $account);
 
             return redirect()->to($this->homeForRole());
@@ -186,15 +197,16 @@ class LogingController extends BaseController
     private function homeForRole(): string
     {
         return match (session()->get('auth_role')) {
-            'cliente'   => base_url('productos'),
-            'vendedor'  => base_url('clientes'),
-            default     => base_url('dashboard'),
+            'cliente'    => base_url('productos'),
+            'vendedor'   => base_url('clientes'),
+            'repartidor' => base_url('repartidores'),
+            default      => base_url('dashboard'),
         };
     }
 
     private function iniciarVerificacionCorreo(string $role, array $account): RedirectResponse
     {
-        if (! empty($account['email_verified_at'])) {
+        if (! array_key_exists('email_verified_at', $account) || ! empty($account['email_verified_at'])) {
             $this->completarAutenticacion($role, $account);
 
             return redirect()->to($this->homeForRole());
@@ -271,7 +283,8 @@ class LogingController extends BaseController
         session()->regenerate(true);
         session()->remove([
             'isLoggedIn', 'auth_role', 'admin_email', 'admin_nombre',
-            'vendedor_id', 'vendedor_nombre', 'cliente_id', 'cliente_nombre', 'carrito',
+            'vendedor_id', 'vendedor_nombre', 'repartidor_id', 'repartidor_nombre',
+            'cliente_id', 'cliente_nombre', 'carrito',
             'mfa_pending', 'mfa_setup_secret',
         ]);
         session()->set('email_verification_pending', [
@@ -324,20 +337,23 @@ class LogingController extends BaseController
         session()->remove([
             'email_verification_pending', 'mfa_pending', 'mfa_setup_secret', 'isLoggedIn', 'auth_role',
             'admin_email', 'admin_nombre', 'vendedor_id', 'vendedor_nombre',
-            'cliente_id', 'cliente_nombre', 'carrito',
+            'repartidor_id', 'repartidor_nombre', 'cliente_id', 'cliente_nombre', 'carrito',
         ]);
         $identity = [
             'auth_role'  => $role,
             'isLoggedIn' => true,
         ];
         if ($role === 'admin') {
-            $identity['admin_email'] = $account['email'];
+            $identity['admin_email']  = $account['email'];
             $identity['admin_nombre'] = $account['nombre'];
         } elseif ($role === 'vendedor') {
-            $identity['vendedor_id'] = $account['id'];
+            $identity['vendedor_id']     = $account['id'];
             $identity['vendedor_nombre'] = $account['nombre'];
+        } elseif ($role === 'repartidor') {
+            $identity['repartidor_id']     = $account['id_repartidor'];
+            $identity['repartidor_nombre'] = trim(($account['nombre'] ?? '') . ' ' . ($account['ap_paterno'] ?? ''));
         } else {
-            $identity['cliente_id'] = $account['id_cliente'];
+            $identity['cliente_id']     = $account['id_cliente'];
             $identity['cliente_nombre'] = $account['nombre'];
         }
         session()->set($identity);
@@ -345,7 +361,7 @@ class LogingController extends BaseController
 
     private function accountTable(string $role): \CodeIgniter\Database\BaseBuilder
     {
-        if (! in_array($role, ['admin', 'vendedor', 'cliente'], true)) {
+        if (! in_array($role, ['admin', 'vendedor', 'repartidor', 'cliente'], true)) {
             throw new \InvalidArgumentException('Rol no válido para verificación por correo.');
         }
 
