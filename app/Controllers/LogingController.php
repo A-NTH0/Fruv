@@ -2,7 +2,7 @@
 
 namespace App\Controllers;
 
-use App\Libraries\MfaTotp;
+use App\Libraries\AccountCredentials;
 use App\Models\AdminModel;
 use App\Models\ClienteModel;
 use App\Models\VendedorModel;
@@ -12,8 +12,8 @@ class LogingController extends BaseController
 {
     public function login()
     {
-        if (session()->has('mfa_pending')) {
-            return redirect()->to(base_url('login/mfa'));
+        if (session()->has('email_verification_pending')) {
+            return redirect()->to(base_url('login/verificar-correo'));
         }
 
         if (session()->get('isLoggedIn')) {
@@ -25,8 +25,8 @@ class LogingController extends BaseController
 
     public function autenticar()
     {
-        if (session()->has('mfa_pending')) {
-            return redirect()->to(base_url('login/mfa'));
+        if (session()->has('email_verification_pending')) {
+            return redirect()->to(base_url('login/verificar-correo'));
         }
 
         $rules = [
@@ -48,12 +48,12 @@ class LogingController extends BaseController
 
         $admin = (new AdminModel())->where('email', $email)->first();
         if ($admin !== null && isset($admin['hash']) && password_verify($contrasena, $admin['hash'])) {
-            return $this->iniciarMfa('admin', $admin);
+            return $this->iniciarVerificacionCorreo('admin', $admin);
         }
 
         $vendedor = (new VendedorModel())->where('email', $email)->first();
         if ($vendedor !== null && isset($vendedor['hash']) && password_verify($contrasena, $vendedor['hash'])) {
-            return $this->iniciarMfa('vendedor', $vendedor);
+            return $this->iniciarVerificacionCorreo('vendedor', $vendedor);
         }
 
         $cliente = (new ClienteModel())
@@ -62,16 +62,7 @@ class LogingController extends BaseController
             ->first();
 
         if ($cliente !== null && isset($cliente['hash']) && password_verify($contrasena, $cliente['hash'])) {
-            session()->regenerate(true);
-            session()->remove(['admin_email', 'admin_nombre', 'vendedor_id', 'vendedor_nombre']);
-            session()->set([
-                'auth_role'   => 'cliente',
-                'cliente_id'  => $cliente['id_cliente'],
-                'cliente_nombre' => $cliente['nombre'],
-                'isLoggedIn'  => true,
-            ]);
-
-            return redirect()->to(base_url('productos'));
+            return $this->iniciarVerificacionCorreo('cliente', $cliente);
         }
 
         return view('login', [
@@ -80,131 +71,109 @@ class LogingController extends BaseController
         ]);
     }
 
-    public function mostrarMfa()
+    public function mostrarVerificacionCorreo()
     {
-        $pending = session()->get('mfa_pending');
-        if (! is_array($pending) || ! isset($pending['role'], $pending['email'], $pending['mode'])) {
+        $pending = session()->get('email_verification_pending');
+        if (! is_array($pending) || ! isset($pending['role'], $pending['email'])) {
             return redirect()->to(base_url('login'));
         }
 
-        if (time() - (int) ($pending['started_at'] ?? 0) > 300) {
-            session()->remove(['mfa_pending', 'mfa_setup_secret']);
+        if (time() - (int) ($pending['started_at'] ?? 0) > 600) {
+            session()->remove('email_verification_pending');
             session()->setFlashdata('error', 'La verificación expiró. Inicia sesión de nuevo.');
 
             return redirect()->to(base_url('login'));
         }
 
-        $data = [
-            'mode'  => $pending['mode'],
-            'error' => session()->getFlashdata('error'),
+        return view('email_verification', [
+            'email'  => $pending['email'],
+            'error'  => session()->getFlashdata('error'),
             'notice' => session()->getFlashdata('notice'),
-            'email' => $pending['email'],
-        ];
-        if ($pending['mode'] === 'setup') {
-            $data['secret'] = (string) session()->get('mfa_setup_secret');
-            $data['provisioningUri'] = (new MfaTotp())->provisioningUri($data['secret'], $pending['email']);
-        }
-
-        return view('mfa', $data);
+        ]);
     }
 
-    public function verificarMfa(): RedirectResponse
+    public function verificarCorreo(): RedirectResponse
     {
-        $pending = session()->get('mfa_pending');
-        if (! is_array($pending) || ! isset($pending['role'], $pending['email'], $pending['mode'])) {
+        $pending = session()->get('email_verification_pending');
+        if (! is_array($pending) || ! isset($pending['role'], $pending['email'])) {
             return redirect()->to(base_url('login'));
         }
 
-        if (time() - (int) ($pending['started_at'] ?? 0) > 300) {
-            session()->remove(['mfa_pending', 'mfa_setup_secret']);
+        if (time() - (int) ($pending['started_at'] ?? 0) > 600) {
+            session()->remove('email_verification_pending');
             session()->setFlashdata('error', 'La verificación expiró. Inicia sesión de nuevo.');
 
             return redirect()->to(base_url('login'));
         }
 
-        $attempts = (int) ($pending['attempts'] ?? 0);
-        if ($attempts >= 5) {
-            session()->remove(['mfa_pending', 'mfa_setup_secret']);
-            session()->setFlashdata('error', 'Se excedió el número de intentos. Inicia sesión de nuevo.');
+        $account = $this->accountTable((string) $pending['role'])
+            ->where('email', $pending['email'])
+            ->get()
+            ->getRowArray();
+        if ($account === null) {
+            session()->remove('email_verification_pending');
+            session()->setFlashdata('error', 'No se pudo verificar el correo. Inicia sesión de nuevo.');
+
+            return redirect()->to(base_url('login'));
+        }
+
+        if (! empty($account['email_verified_at'])) {
+            $this->completarAutenticacion((string) $pending['role'], $account);
+
+            return redirect()->to($this->homeForRole());
+        }
+
+        $expiresAt = strtotime((string) ($account['email_verification_expires_at'] ?? ''));
+        $codeHash = (string) ($account['email_verification_code_hash'] ?? '');
+        if ($expiresAt === false || $expiresAt <= time() || $codeHash === '') {
+            $cleared = $this->accountTable((string) $pending['role'])
+                ->where('email', $pending['email'])
+                ->update([
+                    'email_verification_code_hash' => null,
+                    'email_verification_expires_at' => null,
+                ]);
+            if (! $cleared) {
+                log_message('error', 'No se pudo limpiar el código vencido para {email}.', ['email' => $pending['email']]);
+                throw new \RuntimeException('No se pudo limpiar el código de verificación vencido.');
+            }
+            session()->remove('email_verification_pending');
+            session()->setFlashdata('error', 'El código expiró. Inicia sesión para solicitar uno nuevo.');
 
             return redirect()->to(base_url('login'));
         }
 
         $code = trim((string) $this->request->getPost('code'));
-        $totp = new MfaTotp();
-        if ($pending['mode'] === 'setup') {
-            $secret = (string) session()->get('mfa_setup_secret');
-            if (! $totp->verifyCode($secret, $code)) {
-                return $this->falloMfa($pending, 'El código no es válido. Revisa la hora de tu dispositivo e inténtalo de nuevo.');
-            }
-
-            $recovery = $totp->generateRecoveryCodes();
-            $updated = $this->accountTable($pending['role'])
-                ->where('email', $pending['email'])
-                ->update([
-                    'mfa_enabled'        => 1,
-                    'mfa_secret'         => $totp->encryptSecret($secret),
-                    'mfa_recovery_codes' => json_encode($recovery['hashes'], JSON_THROW_ON_ERROR),
-                ]);
-
-            if (! $updated) {
-                log_message('error', 'No se pudo guardar MFA para la cuenta {email}.', ['email' => $pending['email']]);
-                throw new \RuntimeException('No se pudo guardar la configuración MFA. Intenta de nuevo más tarde.');
-            }
-
-            $this->completarAutenticacion($pending);
-            session()->setFlashdata('mfa_recovery_codes', $recovery['plain']);
-
-            return redirect()->to(base_url('seguridad'));
+        if (preg_match('/^\d{6}$/D', $code) !== 1 || ! password_verify($code, $codeHash)) {
+            return $this->falloCorreo((string) $pending['role'], (string) $pending['email']);
         }
 
-        $account = $this->accountTable($pending['role'])
+        $updated = $this->accountTable((string) $pending['role'])
             ->where('email', $pending['email'])
-            ->get()
-            ->getRowArray();
-        if ($account === null || (int) ($account['mfa_enabled'] ?? 0) !== 1) {
-            session()->remove(['mfa_pending', 'mfa_setup_secret']);
-            session()->setFlashdata('error', 'No se pudo verificar la configuración MFA. Inicia sesión de nuevo.');
-
-            return redirect()->to(base_url('login'));
+            ->where('email_verified_at', null)
+            ->where('email_verification_code_hash', $codeHash)
+            ->where('email_verification_expires_at >', date('Y-m-d H:i:s'))
+            ->update([
+                'email_verified_at' => date('Y-m-d H:i:s'),
+                'email_verification_code_hash' => null,
+                'email_verification_expires_at' => null,
+                'email_verification_attempts' => 0,
+                'email_verification_locked_until' => null,
+            ]);
+        if (! $updated || db_connect()->affectedRows() !== 1) {
+            return $this->falloCorreo((string) $pending['role'], (string) $pending['email']);
         }
 
-        $secret = $totp->decryptSecret((string) $account['mfa_secret']);
-        if ($totp->verifyCode($secret, $code)) {
-            $this->completarAutenticacion($pending);
+        $account['email_verified_at'] = date('Y-m-d H:i:s');
+        $this->completarAutenticacion((string) $pending['role'], $account);
 
-            return redirect()->to($this->homeForRole());
-        }
+        return redirect()->to($this->homeForRole());
+    }
 
-        $storedRecoveryCodes = $account['mfa_recovery_codes'] ?? null;
-        $recoveryHashes = json_decode((string) ($storedRecoveryCodes ?? '[]'), true);
-        if (! is_array($recoveryHashes)) {
-            $recoveryHashes = [];
-        }
-        $remainingCodes = $totp->consumeRecoveryCode($code, $recoveryHashes);
-        if ($remainingCodes !== null) {
-            $updated = $this->accountTable($pending['role'])
-                ->where('email', $pending['email'])
-                ->where('mfa_recovery_codes', $storedRecoveryCodes)
-                ->update([
-                    'mfa_recovery_codes' => json_encode($remainingCodes, JSON_THROW_ON_ERROR),
-                    'mfa_failed_attempts' => 0,
-                    'mfa_locked_until' => null,
-                ]);
-            if (! $updated || db_connect()->affectedRows() !== 1) {
-                return $this->falloMfa($pending, 'El código de recuperación ya fue utilizado. Prueba con otro código.');
-            }
-            $pending['mode'] = 'setup';
-            $pending['attempts'] = 0;
-            $pending['started_at'] = time();
-            session()->set('mfa_pending', $pending);
-            session()->set('mfa_setup_secret', $totp->generateSecret());
-            session()->setFlashdata('notice', 'Se usó un código de recuperación. Configura de nuevo tu aplicación autenticadora para proteger la cuenta.');
+    public function cancelarVerificacionCorreo(): RedirectResponse
+    {
+        session()->remove(['email_verification_pending', 'mfa_pending', 'mfa_setup_secret']);
 
-            return redirect()->to(base_url('login/mfa'));
-        }
-
-        return $this->falloMfa($pending, 'El código no es válido o ya fue utilizado.');
+        return redirect()->to(base_url('login'));
     }
 
     public function cerrarSesion()
@@ -223,109 +192,161 @@ class LogingController extends BaseController
         };
     }
 
-    private function iniciarMfa(string $role, array $account): RedirectResponse
+    private function iniciarVerificacionCorreo(string $role, array $account): RedirectResponse
     {
-        if ((int) ($account['mfa_enabled'] ?? 0) === 1
-            && ! empty($account['mfa_locked_until'])
-            && strtotime((string) $account['mfa_locked_until']) > time()) {
+        if (! empty($account['email_verified_at'])) {
+            $this->completarAutenticacion($role, $account);
+
+            return redirect()->to($this->homeForRole());
+        }
+
+        $lockedUntil = strtotime((string) ($account['email_verification_locked_until'] ?? ''));
+        if ($lockedUntil !== false && $lockedUntil > time()) {
             session()->setFlashdata('error', 'La verificación está bloqueada temporalmente. Intenta más tarde.');
 
             return redirect()->to(base_url('login'));
         }
 
+        $expiresAt = strtotime((string) ($account['email_verification_expires_at'] ?? ''));
+        $sentAt = strtotime((string) ($account['email_verification_sent_at'] ?? ''));
+        if (! empty($account['email_verification_code_hash'])
+            && $expiresAt !== false
+            && $expiresAt > time()
+            && $sentAt !== false
+            && $sentAt > time() - 60) {
+            $this->iniciarSesionPendiente($role, (string) $account['email']);
+            session()->setFlashdata('notice', 'Ya se envió un código recientemente. Revisa tu correo.');
+
+            return redirect()->to(base_url('login/verificar-correo'));
+        }
+
+        $configurationError = AccountCredentials::configurationError();
+        if ($configurationError !== null) {
+            session()->setFlashdata('error', $configurationError);
+
+            return redirect()->to(base_url('login'));
+        }
+
+        $code = AccountCredentials::generateVerificationCode();
+        $updated = $this->accountTable($role)
+            ->where('email', $account['email'])
+            ->where('email_verified_at', null)
+            ->update([
+                'email_verification_code_hash' => password_hash($code, PASSWORD_DEFAULT),
+                'email_verification_expires_at' => date('Y-m-d H:i:s', time() + 600),
+                'email_verification_sent_at' => date('Y-m-d H:i:s'),
+                'email_verification_attempts' => 0,
+            ]);
+        if (! $updated) {
+            log_message('error', 'No se pudo guardar el código de verificación para {email}.', ['email' => $account['email']]);
+            throw new \RuntimeException('No se pudo iniciar la verificación por correo.');
+        }
+
+        $name = trim((string) ($account['nombre'] ?? ''));
+        if (! AccountCredentials::sendVerificationCode((string) $account['email'], $name, $code)) {
+            $cleared = $this->accountTable($role)
+                ->where('email', $account['email'])
+                ->where('email_verified_at', null)
+                ->update([
+                    'email_verification_code_hash' => null,
+                    'email_verification_expires_at' => null,
+                ]);
+            if (! $cleared) {
+                log_message('error', 'No se pudo limpiar el código no enviado para {email}.', ['email' => $account['email']]);
+                throw new \RuntimeException('No se pudo limpiar el código de verificación no enviado.');
+            }
+            session()->setFlashdata('error', 'No se pudo enviar el código. Revisa la configuración del correo e inténtalo de nuevo.');
+
+            return redirect()->to(base_url('login'));
+        }
+
+        $this->iniciarSesionPendiente($role, (string) $account['email']);
+        session()->setFlashdata('notice', 'Enviamos un código de 6 dígitos a tu correo. Es válido durante 10 minutos.');
+
+        return redirect()->to(base_url('login/verificar-correo'));
+    }
+
+    private function iniciarSesionPendiente(string $role, string $email): void
+    {
         session()->regenerate(true);
         session()->remove([
             'isLoggedIn', 'auth_role', 'admin_email', 'admin_nombre',
             'vendedor_id', 'vendedor_nombre', 'cliente_id', 'cliente_nombre', 'carrito',
-            'mfa_setup_secret',
+            'mfa_pending', 'mfa_setup_secret',
         ]);
-
-        $enabled = (int) ($account['mfa_enabled'] ?? 0) === 1;
-        session()->set('mfa_pending', [
+        session()->set('email_verification_pending', [
             'role'       => $role,
-            'email'      => (string) $account['email'],
-            'mode'       => $enabled ? 'challenge' : 'setup',
+            'email'      => $email,
             'started_at' => time(),
-            'attempts'   => 0,
         ]);
-        if (! $enabled) {
-            session()->set('mfa_setup_secret', (new MfaTotp())->generateSecret());
-        }
-
-        return redirect()->to(base_url('login/mfa'));
     }
 
-    private function falloMfa(array $pending, string $message): RedirectResponse
+    private function falloCorreo(string $role, string $email): RedirectResponse
     {
-        $pending['attempts'] = (int) ($pending['attempts'] ?? 0) + 1;
-        session()->set('mfa_pending', $pending);
-        if ($pending['mode'] === 'challenge') {
-            $account = $this->accountTable($pending['role'])
-                ->where('email', $pending['email'])
-                ->get()
-                ->getRowArray();
-            if ($account === null) {
-                throw new \RuntimeException('No se encontró la cuenta para registrar el intento MFA.');
-            }
-            $failures = min(5, (int) ($account['mfa_failed_attempts'] ?? 0) + 1);
-            $updated = $this->accountTable($pending['role'])
-                ->where('email', $pending['email'])
-                ->update([
-                    'mfa_failed_attempts' => $failures,
-                    'mfa_locked_until'     => $failures >= 5 ? date('Y-m-d H:i:s', time() + 600) : null,
-                ]);
-            if (! $updated) {
-                log_message('error', 'No se pudo guardar el intento MFA para {email}.', ['email' => $pending['email']]);
-                throw new \RuntimeException('No se pudo registrar el intento MFA.');
-            }
-        }
-        session()->setFlashdata('error', $message);
-
-        return redirect()->to(base_url('login/mfa'));
-    }
-
-    private function completarAutenticacion(array $pending): void
-    {
-        $account = $this->accountTable($pending['role'])
-            ->where('email', $pending['email'])
+        $account = $this->accountTable($role)
+            ->where('email', $email)
             ->get()
             ->getRowArray();
         if ($account === null) {
-            throw new \RuntimeException('La cuenta no está disponible para completar el inicio de sesión.');
+            throw new \RuntimeException('No se encontró la cuenta para registrar el intento de verificación.');
         }
 
-        $resetAttempts = $this->accountTable($pending['role'])
-            ->where('email', $pending['email'])
-            ->update(['mfa_failed_attempts' => 0, 'mfa_locked_until' => null]);
-        if (! $resetAttempts) {
-            log_message('error', 'No se pudo restablecer el contador MFA para {email}.', ['email' => $pending['email']]);
-            throw new \RuntimeException('No se pudo completar de forma segura la autenticación MFA.');
+        $attempts = (int) ($account['email_verification_attempts'] ?? 0) + 1;
+        $locked = $attempts >= 5;
+        $updated = $this->accountTable($role)
+            ->where('email', $email)
+            ->update([
+                'email_verification_attempts' => $locked ? 0 : $attempts,
+                'email_verification_code_hash' => $locked ? null : $account['email_verification_code_hash'],
+                'email_verification_expires_at' => $locked ? null : $account['email_verification_expires_at'],
+                'email_verification_locked_until' => $locked ? date('Y-m-d H:i:s', time() + 600) : null,
+            ]);
+        if (! $updated) {
+            log_message('error', 'No se pudo guardar el intento de verificación para {email}.', ['email' => $email]);
+            throw new \RuntimeException('No se pudo registrar el intento de verificación.');
         }
 
+        if ($locked) {
+            session()->remove('email_verification_pending');
+            session()->setFlashdata('error', 'Se excedió el número de intentos. Intenta de nuevo en 10 minutos.');
+
+            return redirect()->to(base_url('login'));
+        }
+
+        session()->setFlashdata('error', 'El código no es válido. Revisa el correo e inténtalo de nuevo.');
+
+        return redirect()->to(base_url('login/verificar-correo'));
+    }
+
+    private function completarAutenticacion(string $role, array $account): void
+    {
         session()->regenerate(true);
         session()->remove([
-            'mfa_pending', 'mfa_setup_secret', 'isLoggedIn', 'auth_role',
+            'email_verification_pending', 'mfa_pending', 'mfa_setup_secret', 'isLoggedIn', 'auth_role',
             'admin_email', 'admin_nombre', 'vendedor_id', 'vendedor_nombre',
             'cliente_id', 'cliente_nombre', 'carrito',
         ]);
         $identity = [
-            'auth_role'  => $pending['role'],
+            'auth_role'  => $role,
             'isLoggedIn' => true,
         ];
-        if ($pending['role'] === 'admin') {
+        if ($role === 'admin') {
             $identity['admin_email'] = $account['email'];
             $identity['admin_nombre'] = $account['nombre'];
-        } else {
+        } elseif ($role === 'vendedor') {
             $identity['vendedor_id'] = $account['id'];
             $identity['vendedor_nombre'] = $account['nombre'];
+        } else {
+            $identity['cliente_id'] = $account['id_cliente'];
+            $identity['cliente_nombre'] = $account['nombre'];
         }
         session()->set($identity);
     }
 
     private function accountTable(string $role): \CodeIgniter\Database\BaseBuilder
     {
-        if (! in_array($role, ['admin', 'vendedor'], true)) {
-            throw new \InvalidArgumentException('Rol no válido para MFA.');
+        if (! in_array($role, ['admin', 'vendedor', 'cliente'], true)) {
+            throw new \InvalidArgumentException('Rol no válido para verificación por correo.');
         }
 
         return db_connect()->table($role);

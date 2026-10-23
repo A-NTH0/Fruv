@@ -395,13 +395,32 @@ class ClientesController extends BaseController
             return redirect()->back()->withInput()->with('error', implode(' ', $this->validator->getErrors()));
         }
 
-        $model->update($id, [
+        $cliente = $id > 0 ? $model->find($id) : null;
+        if ($cliente === null) {
+            return redirect()->back()->with('error', 'El cliente seleccionado no existe.');
+        }
+
+        $changes = [
             'nombre'     => $this->request->getPost('nombre'),
             'ap_paterno' => $this->request->getPost('ap_paterno'),
             'ap_materno' => $this->request->getPost('ap_materno'),
             'telefono'   => $this->request->getPost('telefono'),
             'email'      => $email,
-        ]);
+        ];
+        if (strtolower(trim((string) $cliente['email'])) !== $email) {
+            $changes += [
+                'email_verified_at' => null,
+                'email_verification_code_hash' => null,
+                'email_verification_expires_at' => null,
+                'email_verification_sent_at' => null,
+                'email_verification_attempts' => 0,
+                'email_verification_locked_until' => null,
+            ];
+        }
+
+        if (! $model->update($id, $changes)) {
+            return redirect()->back()->withInput()->with('error', 'No se pudo actualizar el cliente.');
+        }
 
         $model->actualizarDireccion($id, [
             'calle'     => $this->request->getPost('calle'),

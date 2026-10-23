@@ -109,7 +109,7 @@ class Filters extends BaseFilters
      */
     public array $filters = [
         'csrf' => [
-            'before' => ['login/mfa', 'seguridad/codigos-recuperacion'],
+            'before' => ['login/verificar-correo', 'login/cancelar-verificacion-correo'],
         ],
     ];
 }

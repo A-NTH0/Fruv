@@ -4,6 +4,11 @@ namespace App\Libraries;
 
 final class AccountCredentials
 {
+    public static function generateVerificationCode(): string
+    {
+        return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    }
+
     public static function generatePassword(): string
     {
         $characterSets = [
@@ -65,6 +70,42 @@ final class AccountCredentials
     private static function isPlaceholder(string $value): bool
     {
         return preg_match('/tu-|example\\.com|changeme|placeholder/i', $value) === 1;
+    }
+
+    public static function sendVerificationCode(string $recipient, string $name, string $code): bool
+    {
+        $config = config('Email');
+
+        if (self::configurationError() !== null) {
+            log_message('error', 'No se envió el código de verificación: ' . self::configurationError());
+
+            return false;
+        }
+
+        $email = service('email');
+        $email->setFrom($config->fromEmail, $config->fromName ?: 'Fruver');
+        $email->setTo($recipient);
+        $email->setSubject('Fruver | Código de verificación');
+        $email->setMailType('text');
+        $email->setMessage(
+            "Hola {$name},\n\n"
+            . "Tu código de verificación para ingresar a Fruver es: {$code}\n\n"
+            . "El código vence en 10 minutos y solo se puede utilizar una vez. "
+            . "Si no solicitaste este acceso, ignora este mensaje."
+        );
+
+        $sent = $email->send(false);
+        if (! $sent) {
+            $smtpDebug = strip_tags($email->printDebugger([]));
+            log_message('error', 'Falló el envío del código de verificación. Respuesta SMTP: ' . $smtpDebug);
+        }
+        $email->clear(true);
+
+        if (! $sent) {
+            log_message('error', 'No se pudo enviar el código de verificación de Fruver.');
+        }
+
+        return $sent;
     }
 
     public static function sendPassword(string $recipient, string $name, string $role, string $password): bool

@@ -6,7 +6,23 @@ class ClienteModel extends Model
 {
     protected $table            = 'cliente';
     protected $primaryKey       = 'id_cliente';
-    protected $allowedFields    = ['nombre', 'ap_paterno', 'ap_materno', 'telefono', 'email', 'hash', 'baja', 'fecha_baja', 'preferencial_manual'];
+    protected $allowedFields    = [
+        'nombre',
+        'ap_paterno',
+        'ap_materno',
+        'telefono',
+        'email',
+        'hash',
+        'baja',
+        'fecha_baja',
+        'preferencial_manual',
+        'email_verified_at',
+        'email_verification_code_hash',
+        'email_verification_expires_at',
+        'email_verification_sent_at',
+        'email_verification_attempts',
+        'email_verification_locked_until',
+    ];
 
    
     public const UMBRAL_PREFERENCIAL    = 5;   // pedidos de contado concluidos para ser preferencial

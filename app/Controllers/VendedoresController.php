@@ -99,8 +99,20 @@ class VendedoresController extends BaseController
         }
 
         $model = new VendedorModel();
-        if ($model->find($id) === null) {
+        $vendedor = $model->find($id);
+        if ($vendedor === null) {
             return redirect()->to(base_url('vendedores'))->with('error', 'El vendedor ya no existe.');
+        }
+
+        if (strtolower(trim((string) $vendedor['email'])) !== $input['email']) {
+            $input += [
+                'email_verified_at' => null,
+                'email_verification_code_hash' => null,
+                'email_verification_expires_at' => null,
+                'email_verification_sent_at' => null,
+                'email_verification_attempts' => 0,
+                'email_verification_locked_until' => null,
+            ];
         }
 
         if (! $model->update($id, $input)) {

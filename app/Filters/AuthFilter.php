@@ -37,17 +37,13 @@ class AuthFilter implements FilterInterface
                 ->get()
                 ->getRowArray();
 
-            if ($vendedor === null || (int) ($vendedor['mfa_enabled'] ?? 0) !== 1) {
+            if ($vendedor === null || empty($vendedor['email_verified_at'])) {
                 $session->destroy();
 
                 return redirect()->to(base_url('login'));
             }
 
             $esLogout = $segments === ['logout'];
-            $esSeguridad = $segments === ['seguridad']
-                && in_array(strtoupper($request->getMethod()), ['GET', 'HEAD'], true);
-            $esRegenerarCodigos = strtoupper($request->getMethod()) === 'POST'
-                && $segments === ['seguridad', 'codigos-recuperacion'];
             $esCatalogo = strtoupper($request->getMethod()) === 'GET'
                 && $segments === ['clientes'];
             $esHistorial = strtoupper($request->getMethod()) === 'GET'
@@ -77,8 +73,7 @@ class AuthFilter implements FilterInterface
             $esEnviarPedido = strtoupper($request->getMethod()) === 'POST'
                 && $segments === ['clientes', 'pedido', 'enviar'];
 
-            if (! $esLogout && ! $esSeguridad && ! $esRegenerarCodigos
-                && ! $esCatalogo && ! $esHistorial && ! $esRecarga
+            if (! $esLogout && ! $esCatalogo && ! $esHistorial && ! $esRecarga
                 && ! $esCatalogoPedido && ! $esNuevoPedido && ! $esAccionPedido && ! $esActualizarPedido && ! $esQuitarPedido && ! $esEnviarPedido) {
                 return redirect()->to(base_url('clientes'));
             }
@@ -96,7 +91,7 @@ class AuthFilter implements FilterInterface
                 ->get()
                 ->getRowArray();
 
-            if ($admin === null || (int) ($admin['mfa_enabled'] ?? 0) !== 1) {
+            if ($admin === null || empty($admin['email_verified_at'])) {
                 $session->destroy();
 
                 return redirect()->to(base_url('login'));
@@ -109,12 +104,13 @@ class AuthFilter implements FilterInterface
         }
 
         // RNF-04: si el cliente fue dado de baja (o eliminado) con la sesión abierta, se cierra al instante.
-        $vigente = db_connect()->table('cliente')
+        $cliente = db_connect()->table('cliente')
+            ->select('baja, email_verified_at')
             ->where('id_cliente', (int) $session->get('cliente_id'))
-            ->where('baja', 0)
-            ->countAllResults() > 0;
+            ->get()
+            ->getRowArray();
 
-        if (! $vigente) {
+        if ($cliente === null || (int) $cliente['baja'] !== 0 || empty($cliente['email_verified_at'])) {
             $session->destroy();
 
             return redirect()->to(base_url('login'));

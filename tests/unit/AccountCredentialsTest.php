@@ -20,4 +20,11 @@ final class AccountCredentialsTest extends CIUnitTestCase
             $this->assertMatchesRegularExpression('/[!@#$%*_-]/', $password);
         }
     }
+
+    public function testGeneratedEmailVerificationCodesHaveSixDigits(): void
+    {
+        for ($attempt = 0; $attempt < 25; $attempt++) {
+            $this->assertMatchesRegularExpression('/^\d{6}$/', AccountCredentials::generateVerificationCode());
+        }
+    }
 }

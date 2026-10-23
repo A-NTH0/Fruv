@@ -44,10 +44,6 @@
                 <i data-lucide="users" class="w-4 h-4" aria-hidden="true"></i>
                 <span>Catálogo de clientes</span>
             </a>
-            <a href="<?= base_url('seguridad') ?>" class="nav-item <?= $pagina_actual === 'seguridad' ? 'active' : '' ?>"<?= $actual($pagina_actual === 'seguridad') ?>>
-                <i data-lucide="shield-check" class="w-4 h-4" aria-hidden="true"></i>
-                <span>Seguridad</span>
-            </a>
         <?php else: ?>
             <a href="<?= base_url('dashboard') ?>"
                class="nav-item <?= ($pagina_actual == 'dashboard' || $pagina_actual == '') ? 'active' : '' ?>"<?= $actual($pagina_actual == 'dashboard' || $pagina_actual == '') ?>>
@@ -89,11 +85,6 @@
                class="nav-item <?= ($pagina_actual == 'vendedores') ? 'active' : '' ?>"<?= $actual($pagina_actual == 'vendedores') ?>>
                 <i data-lucide="user-round-cog" class="w-4 h-4" aria-hidden="true"></i>
                 <span>Vendedores</span>
-            </a>
-            <a href="<?= base_url('seguridad') ?>"
-               class="nav-item <?= ($pagina_actual == 'seguridad') ? 'active' : '' ?>"<?= $actual($pagina_actual == 'seguridad') ?>>
-                <i data-lucide="shield-check" class="w-4 h-4" aria-hidden="true"></i>
-                <span>Seguridad</span>
             </a>
         <?php endif; ?>
         <a href="<?= base_url('logout') ?>" class="nav-item mt-auto">

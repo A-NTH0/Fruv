@@ -32,13 +32,13 @@ to avoid exposing internal application details.
 
 The application login is served at `/` (or `/login`).
 
-## MFA para administradores y vendedores
+## Verificación del primer inicio de sesión
 
-La primera vez que un administrador o vendedor inicia sesión después de aplicar la migración, debe vincular una aplicación autenticadora TOTP. Las cuentas de cliente no usan este segundo factor. Las semillas TOTP se cifran en la base de datos y los códigos de recuperación se guardan como hashes.
-
-Antes de desplegar, configura `MFA_ENCRYPTION_KEY` en el entorno del servidor como Base64 de exactamente 32 bytes aleatorios. Por ejemplo, genera un valor con `php -r "echo base64_encode(random_bytes(32)), PHP_EOL;"` y guárdalo como secreto fuera del repositorio. Conserva una copia de respaldo segura: si se pierde o cambia esta clave, no podrán descifrarse las semillas MFA existentes.
-
-Aplica el esquema con `php spark migrate`. Guarda los códigos de recuperación que aparecen al activar MFA; después solo se pueden regenerar con un código TOTP válido.
+La primera vez que un administrador, vendedor o cliente inicia sesión, Fruver
+envía un código de seis dígitos al correo registrado. El código vence en 10
+minutos; después de verificarlo, los accesos siguientes solo requieren correo y
+contraseña. Tras configurar las credenciales SMTP de correo en `.env`, aplica
+los cambios de esquema con `php spark migrate`.
 
 ## Important Change with index.php
 
