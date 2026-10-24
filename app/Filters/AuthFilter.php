@@ -37,7 +37,7 @@ class AuthFilter implements FilterInterface
                 ->get()
                 ->getRowArray();
 
-            if ($repartidor === null) {
+            if ($repartidor === null || empty($repartidor['email_verified_at'])) {
                 $session->destroy();
 
                 return redirect()->to(base_url('login'));

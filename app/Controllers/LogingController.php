@@ -123,7 +123,12 @@ class LogingController extends BaseController
             return redirect()->to(base_url('login'));
         }
 
-        if (! array_key_exists('email_verified_at', $account) || ! empty($account['email_verified_at'])) {
+        if (! array_key_exists('email_verified_at', $account)) {
+            log_message('error', 'Faltan las columnas de verificación de correo para la cuenta {email}.', ['email' => $pending['email']]);
+            throw new \RuntimeException('La base de datos no está preparada para verificar el correo.');
+        }
+
+        if (! empty($account['email_verified_at'])) {
             $this->completarAutenticacion((string) $pending['role'], $account);
 
             return redirect()->to($this->homeForRole());
@@ -201,7 +206,12 @@ class LogingController extends BaseController
 
     private function iniciarVerificacionCorreo(string $role, array $account): RedirectResponse
     {
-        if (! array_key_exists('email_verified_at', $account) || ! empty($account['email_verified_at'])) {
+        if (! array_key_exists('email_verified_at', $account)) {
+            log_message('error', 'Faltan las columnas de verificación de correo para la cuenta {email}.', ['email' => $account['email']]);
+            throw new \RuntimeException('La base de datos no está preparada para verificar el correo.');
+        }
+
+        if (! empty($account['email_verified_at'])) {
             $this->completarAutenticacion($role, $account);
 
             return redirect()->to($this->homeForRole());
