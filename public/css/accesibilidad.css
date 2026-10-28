@@ -32,3 +32,221 @@ main .text-emerald-600 { color: #047857; }
 .sum-field input, .add-cart input, .abono-form input, .qty,
 main input.border-gray-200, main input[type="search"] { border-color: #6b7280; }
 .input-group { border-color: rgba(255, 255, 255, .55); }                              /* login */
+
+/* Base visual compartida para las vistas de Fruver. */
+:root {
+    --app-ink: #202b3d;
+    --app-muted: #526074;
+    --app-line: #dfe4ec;
+    --app-surface: #fff;
+    --app-canvas: #f4f6fa;
+    --app-brand: #a1143a;
+    --app-brand-dark: #80112f;
+    --app-radius: 1rem;
+    --app-shadow: 0 8px 26px rgba(32, 43, 61, .075);
+}
+
+html {
+    font-size: 16px;
+    scroll-behavior: smooth;
+}
+
+body {
+    color: var(--app-ink);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 1rem;
+    line-height: 1.55;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+}
+
+main {
+    color: var(--app-ink);
+}
+
+main h1 {
+    color: var(--app-ink);
+    font-size: clamp(1.8rem, 2.5vw, 2.35rem) !important;
+    font-weight: 800;
+    letter-spacing: -.035em;
+    line-height: 1.15;
+}
+
+main h2 {
+    color: var(--app-ink);
+    font-size: clamp(1.25rem, 1.8vw, 1.65rem);
+    font-weight: 750;
+    letter-spacing: -.025em;
+    line-height: 1.25;
+}
+
+main h3 {
+    color: var(--app-ink);
+    font-size: 1.12rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+main p,
+main li {
+    line-height: 1.55;
+}
+
+main .text-xs {
+    font-size: .82rem !important;
+    line-height: 1.4 !important;
+}
+
+main .text-sm {
+    font-size: .94rem !important;
+    line-height: 1.45 !important;
+}
+
+main .text-gray-400,
+main .text-gray-500 {
+    color: var(--app-muted) !important;
+}
+
+main .text-gray-300 {
+    color: #647084 !important;
+}
+
+main .bg-white[class*="rounded"],
+main [class*="card-"],
+main .panel {
+    border-color: var(--app-line);
+    box-shadow: var(--app-shadow);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]),
+select,
+textarea {
+    min-height: 2.85rem;
+    border-color: #cbd3df;
+    border-radius: .75rem;
+    color: var(--app-ink);
+    font-family: inherit;
+    font-size: 1rem;
+    line-height: 1.4;
+}
+
+textarea {
+    min-height: 6rem;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: #68758a;
+    opacity: 1;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--app-brand) !important;
+    box-shadow: 0 0 0 3px rgba(161, 20, 58, .14) !important;
+    outline: none;
+}
+
+button,
+[role="button"],
+a[class*="btn"],
+a[class*="button"] {
+    font-family: inherit;
+    transition: color .16s ease, background-color .16s ease, border-color .16s ease,
+        box-shadow .16s ease, transform .16s ease;
+}
+
+button[type="submit"],
+input[type="submit"] {
+    min-height: 2.8rem;
+    font-weight: 700;
+}
+
+main button:not([class*="w-"]) {
+    min-height: 2.5rem;
+}
+
+main button:disabled,
+main [aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: .62;
+}
+
+table {
+    color: var(--app-ink);
+    font-size: .96rem;
+}
+
+table th {
+    color: #46536a;
+    font-size: .8rem;
+    font-weight: 750;
+    letter-spacing: .045em;
+    line-height: 1.4;
+}
+
+table td {
+    color: #37445a;
+    font-size: .95rem;
+    line-height: 1.45;
+}
+
+table tbody tr {
+    transition: background-color .14s ease;
+}
+
+table tbody tr:hover {
+    background-color: #f8f4f6;
+}
+
+main [class*="badge"],
+main [class*="status"],
+main [class*="estado"],
+[role="dialog"] [class*="badge"],
+[role="dialog"] [class*="status"] {
+    line-height: 1.4;
+}
+
+dialog,
+[role="dialog"],
+.modal-content {
+    border: 1px solid var(--app-line);
+    border-radius: 1.15rem;
+    box-shadow: 0 22px 60px rgba(21, 29, 43, .22);
+}
+
+.sidebar .nav-item {
+    font-size: .88rem !important;
+}
+
+.sidebar .nav-item:focus-visible {
+    outline: 3px solid #fff;
+    outline-offset: 3px;
+}
+
+@media (max-width: 760px) {
+    html {
+        font-size: 15px;
+    }
+
+    main h1 {
+        font-size: 1.8rem !important;
+    }
+
+    main .overflow-x-auto,
+    main table {
+        max-width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+    }
+}
