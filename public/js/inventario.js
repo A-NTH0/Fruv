@@ -59,25 +59,43 @@ const inputFechaCaducidad = document.getElementById('fecha_caducidad');
 
 function configurarLimitesCalendario() {
     if (!inputFechaEntrada) return;
-    const hoy           = new Date();
-    const maxFecha      = hoy.toISOString().split('T')[0];
-    const haceUnaSemana = new Date();
+    const hoy = new Date();
+    const fechaLocal = fecha => {
+        const anio = fecha.getFullYear();
+        const mes  = String(fecha.getMonth() + 1).padStart(2, '0');
+        const dia  = String(fecha.getDate()).padStart(2, '0');
+        return `${anio}-${mes}-${dia}`;
+    };
+    const maxFecha      = fechaLocal(hoy);
+    const haceUnaSemana = new Date(hoy);
     haceUnaSemana.setDate(hoy.getDate() - 7);
-    const minFecha      = haceUnaSemana.toISOString().split('T')[0];
+    const minFecha      = fechaLocal(haceUnaSemana);
     inputFechaEntrada.max = maxFecha;
     inputFechaEntrada.min = minFecha;
+
+    if (!inputFechaEntrada.value) {
+        inputFechaEntrada.value = maxFecha;
+    }
+
+    actualizarFechaCaducidad();
 }
 configurarLimitesCalendario();
 
-inputFechaEntrada?.addEventListener('change', function() {
-    if (!this.value || !inputFechaCaducidad) return;
-    const partes = this.value.split('-');
-    const fecha  = new Date(parseInt(partes[0], 10), parseInt(partes[1], 10) - 1, parseInt(partes[2], 10));
+function actualizarFechaCaducidad() {
+    if (!inputFechaEntrada?.value || !inputFechaCaducidad) return;
+
+    const partes = inputFechaEntrada.value.split('-');
+    const fecha  = new Date(Number(partes[0]), Number(partes[1]) - 1, Number(partes[2]));
     fecha.setDate(fecha.getDate() + 5);
     const anio = fecha.getFullYear();
     const mes  = String(fecha.getMonth() + 1).padStart(2, '0');
     const dia  = String(fecha.getDate()).padStart(2, '0');
     inputFechaCaducidad.value = `${anio}-${mes}-${dia}`;
+}
+
+inputFechaEntrada?.addEventListener('change', function() {
+    if (!this.value || !inputFechaCaducidad) return;
+    actualizarFechaCaducidad();
 });
 
 (function setFechaMermaHoy() {
@@ -193,32 +211,93 @@ if (formRegistrarMerma) {
 }
 
 // ─────────────────────────────────────────────
-//  BUSCADOR INTELIGENTE ENTRADAS (.includes)
+//  AUTOCOMPLETADO DE ENTRADAS CON LA ÚLTIMA COMPRA
 // ─────────────────────────────────────────────
-const formularioEntrada = document.querySelector('form[action*="registrar-entrada"]');
-const inputBusqueda     = document.getElementById('busqueda_producto');
-const listaProductos    = document.getElementById('lista-productos');
-const hiddenInput       = document.getElementById('id_producto_hidden');
+const formularioEntrada   = document.querySelector('form[action*="registrar-entrada"]');
+const inputBusqueda       = document.getElementById('busqueda_producto');
+const listaProductos      = document.getElementById('lista-productos');
+const hiddenInput         = document.getElementById('id_producto_hidden');
+const ayudaCompraAnterior = document.getElementById('ayuda-compra-anterior');
 
-inputBusqueda?.addEventListener('input', function() {
-    const val = this.value.trim().toLowerCase();
-    const opt = Array.from(listaProductos.options).find(o => o.value.toLowerCase().includes(val));
-    hiddenInput.value = opt ? opt.getAttribute('data-id') : '';
-});
+function normalizarNombreProducto(nombre) {
+    return nombre.trim().toLocaleLowerCase();
+}
+
+function encontrarOpcionProducto(texto) {
+    if (!texto || !listaProductos) return null;
+
+    const valor = normalizarNombreProducto(texto);
+    const opciones = Array.from(listaProductos.options);
+    const exacta = opciones.find(opcion => normalizarNombreProducto(opcion.value) === valor);
+    if (exacta) return exacta;
+
+    const coincidencias = opciones.filter(opcion =>
+        normalizarNombreProducto(opcion.value).startsWith(valor)
+    );
+
+    return coincidencias.length === 1 ? coincidencias[0] : null;
+}
+
+function limpiarCompraAutocompletada() {
+    document.getElementById('precio_entrada').value = '';
+    document.getElementById('equivalente').value = '';
+    selectUCompra.selectedIndex = 0;
+    selectUVenta.selectedIndex = 0;
+    cambiarTextoConversion();
+    calcularEquivalente();
+}
+
+function sincronizarProductoEntrada() {
+    if (!inputBusqueda || !hiddenInput) return;
+
+    const opcion = encontrarOpcionProducto(inputBusqueda.value);
+    if (!opcion) {
+        if (hiddenInput.value !== '') {
+            hiddenInput.value = '';
+            hiddenInput.dataset.productoSeleccionado = '';
+            limpiarCompraAutocompletada();
+        }
+        if (ayudaCompraAnterior) {
+            ayudaCompraAnterior.textContent = 'Selecciona un producto de la lista para cargar su última compra.';
+        }
+        return;
+    }
+
+    const idProducto = opcion.dataset.id;
+    hiddenInput.value = idProducto;
+
+    if (hiddenInput.dataset.productoSeleccionado === idProducto) return;
+    hiddenInput.dataset.productoSeleccionado = idProducto;
+
+    document.getElementById('precio_entrada').value = opcion.dataset.precio || '';
+    document.getElementById('equivalente').value = opcion.dataset.equivalente || '';
+    selectUCompra.value = opcion.dataset.unidadCompra || selectUCompra.options[0].value;
+    selectUVenta.value = opcion.dataset.unidadVenta || selectUVenta.options[0].value;
+    cambiarTextoConversion();
+    calcularEquivalente();
+
+    if (ayudaCompraAnterior) {
+        ayudaCompraAnterior.textContent = opcion.dataset.tieneHistorial === '1'
+            ? 'Datos de la última compra cargados. Puedes modificarlos para esta entrada.'
+            : 'Este producto no tiene compras anteriores; completa los datos de compra.';
+    }
+}
+
+inputBusqueda?.addEventListener('input', sincronizarProductoEntrada);
+inputBusqueda?.addEventListener('change', sincronizarProductoEntrada);
 
 if (formularioEntrada) {
     formularioEntrada.addEventListener('submit', function(e) {
-        const val = inputBusqueda.value.trim().toLowerCase();
-        const opt = Array.from(listaProductos.options).find(o => o.value.toLowerCase().includes(val));
-        if (!opt || val === '') {
+        sincronizarProductoEntrada();
+        if (!hiddenInput.value) {
             e.preventDefault();
             Swal.fire('Producto no válido', 'Por favor selecciona un producto activo de la lista.', 'error');
             hiddenInput.value = '';
             inputBusqueda.focus();
             return;
         }
-        inputBusqueda.value = opt.value;
-        hiddenInput.value   = opt.getAttribute('data-id');
+        inputBusqueda.value = Array.from(listaProductos.options)
+            .find(opcion => opcion.dataset.id === hiddenInput.value).value;
 
         if (inputFechaEntrada && inputFechaEntrada.value) {
             const fechaIng = new Date(inputFechaEntrada.value + 'T00:00:00');

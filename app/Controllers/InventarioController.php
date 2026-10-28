@@ -20,6 +20,7 @@ class InventarioController extends BaseController
             'stats'         => $productoModel->getDashboardStats(),
             'entradas'      => $entradaModel->getEntradasConProductos(10),
             'todasEntradas' => $entradaModel->getAllEntradas(),
+            'comprasAnteriores' => $entradaModel->getUltimaEntradaPorProducto(),
             'productos'     => $productoModel->getProductosActivos(),
             'existencias'   => (new ExistenciasModel())->getAllExistencias(),
             'mermas'        => (new MermaModel())->getAllMermas(),

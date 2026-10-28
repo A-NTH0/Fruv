@@ -1,6 +1,9 @@
 <?php
 namespace App\Models;
+
+use App\Libraries\ProductoCodigo;
 use CodeIgniter\Model;
+use RuntimeException;
 
 class ProductoModel extends Model
 {
@@ -118,6 +121,30 @@ class ProductoModel extends Model
         return $this->countAllResults() > 0;
     }
 
+    public function generarCodigoSugerido(string $nombre): string
+    {
+        $db = \Config\Database::connect();
+        $tabla = $db->prefixTable($this->table);
+        $resultado = $db->query(
+            'SELECT AUTO_INCREMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
+            [$tabla]
+        )->getRowArray();
+
+        if (! isset($resultado['AUTO_INCREMENT'])) {
+            throw new RuntimeException('No se pudo determinar el próximo número de registro del producto.');
+        }
+
+        $codigos = $db->table($this->table)->select('codigo')->get()->getResultArray();
+        $basesOcupadas = [];
+        foreach ($codigos as $producto) {
+            if (preg_match('/^([A-Z]+)-\d+$/', (string) $producto['codigo'], $coincidencias)) {
+                $basesOcupadas[] = $coincidencias[1];
+            }
+        }
+
+        return ProductoCodigo::generarCodigo($nombre, (int) $resultado['AUTO_INCREMENT'], $basesOcupadas);
+    }
+
     public function getUltimasEntradas($limite = 5)
     {
         $db = \Config\Database::connect();
@@ -168,19 +195,37 @@ class ProductoModel extends Model
     public function guardarProducto($data)
     {
         $db = \Config\Database::connect();
-        $idNuevo = $this->insert($data, true);
+        $db->transBegin();
 
-        if ($idNuevo && $db->tableExists('existencias')) {
-            $db->table('existencias')->insert([
+        try {
+            $idNuevo        = $this->insert($data, true);
+
+            if (! is_numeric($idNuevo) || (int) $idNuevo < 1) {
+                throw new RuntimeException('No se pudo registrar el producto.');
+            }
+
+            $idNuevo = (int) $idNuevo;
+            if ($db->tableExists('existencias') && ! $db->table('existencias')->insert([
                 'exis_total_general' => 0,
                 'exis_bloqueo'       => 0,
                 'exis_venta'         => 0,
                 'exis_total_dia'     => 0,
                 'id_producto1'       => $idNuevo,
-            ]);
-        }
+            ])) {
+                throw new RuntimeException('No se pudieron inicializar las existencias del producto.');
+            }
 
-        return $idNuevo;
+            if (! $db->transStatus()) {
+                throw new RuntimeException('No se pudo completar el registro del producto.');
+            }
+
+            $db->transCommit();
+
+            return $idNuevo;
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            throw $e;
+        }
     }
 
     public function actualizarProducto($id, $data)

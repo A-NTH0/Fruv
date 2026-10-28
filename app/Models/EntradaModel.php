@@ -23,4 +23,20 @@ class EntradaModel extends Model {
     {
         return $this->getEntradasConProductos(1000);
     }
+
+    public function getUltimaEntradaPorProducto(): array
+    {
+        $db = \Config\Database::connect();
+
+        return $db->query(
+            'SELECT entrada.id_producto2, entrada.precio_compra, entrada.unidad_compra,
+                    entrada.unidad_venta, entrada.equivalente
+             FROM entrada
+             INNER JOIN (
+                 SELECT id_producto2, MAX(id_entrada) AS ultima_entrada
+                 FROM entrada
+                 GROUP BY id_producto2
+             ) AS ultimas ON ultimas.ultima_entrada = entrada.id_entrada'
+        )->getResultArray();
+    }
 }

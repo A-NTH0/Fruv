@@ -205,13 +205,15 @@
                 </button>
             </div>
 
-            <form id="formProducto" action="<?= base_url('productos/guardar') ?>" method="post" enctype="multipart/form-data" class="space-y-5">
+            <form id="formProducto" data-mode="nuevo" action="<?= base_url('productos/guardar') ?>" method="post" enctype="multipart/form-data" class="space-y-5">
                 <input type="hidden" name="id_producto" id="edit_id">
 
                 <div>
                     <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Código del Producto</label>
                     <input type="text" name="codigo" id="edit_codigo" maxlength="50" required
+                           placeholder="Se genera al escribir el nombre (ej. MND-020)"
                            class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-rose-500 outline-none text-sm font-medium">
+                    <p id="codigoAyuda" class="mt-1 text-xs text-gray-400">Se sugiere automáticamente y puedes editarlo.</p>
                 </div>
 
                 <div>
@@ -333,20 +335,78 @@
         function abrirModalNuevo() {
             document.getElementById('modalTitulo').textContent = "Nuevo Producto";
             document.getElementById('formProducto').action     = "<?= base_url('productos/guardar') ?>";
+            document.getElementById('formProducto').dataset.mode = "nuevo";
             document.getElementById('formProducto').reset();
             document.getElementById('edit_id').value           = "";
             document.getElementById('edit_codigo').value       = "";
+            document.getElementById('edit_codigo').dataset.manual = "false";
+            document.getElementById('codigoAyuda').textContent = "Se sugiere automáticamente y puedes editarlo.";
             document.getElementById('edit_precio').value       = "";
             document.getElementById('edit_estado').value       = "activo";
             document.getElementById('fileName').textContent    = "Selecciona un archivo...";
             document.getElementById('modalProducto').classList.remove('hidden');
         }
 
+        let codigoSugeridoTimer;
+        let codigoSugeridoRequest;
+
+        document.getElementById('edit_codigo').addEventListener('input', function () {
+            this.dataset.manual = "true";
+            document.getElementById('codigoAyuda').textContent = "Código personalizado; puedes editarlo.";
+        });
+
+        document.getElementById('edit_nombre').addEventListener('input', function () {
+            const codigo = document.getElementById('edit_codigo');
+            const ayuda = document.getElementById('codigoAyuda');
+
+            if (document.getElementById('formProducto').dataset.mode !== "nuevo" || codigo.dataset.manual === "true") {
+                return;
+            }
+
+            clearTimeout(codigoSugeridoTimer);
+            if (codigoSugeridoRequest) {
+                codigoSugeridoRequest.abort();
+            }
+
+            const nombre = this.value.trim();
+            if (!nombre) {
+                codigo.value = "";
+                ayuda.textContent = "Se sugiere automáticamente y puedes editarlo.";
+                return;
+            }
+
+            codigoSugeridoTimer = setTimeout(async () => {
+                codigoSugeridoRequest = new AbortController();
+                ayuda.textContent = "Generando sugerencia...";
+
+                try {
+                    const url = new URL("<?= base_url('productos/sugerir-codigo') ?>");
+                    url.searchParams.set('nombre', nombre);
+                    const response = await fetch(url, { signal: codigoSugeridoRequest.signal });
+                    if (!response.ok) {
+                        throw new Error('No se pudo generar la sugerencia.');
+                    }
+
+                    const resultado = await response.json();
+                    if (document.getElementById('edit_nombre').value.trim() === nombre && codigo.dataset.manual !== "true") {
+                        codigo.value = resultado.codigo;
+                        ayuda.textContent = "Sugerencia automática; puedes editar el código.";
+                    }
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        ayuda.textContent = "No se pudo sugerir el código. Inténtalo de nuevo.";
+                    }
+                }
+            }, 250);
+        });
+
         function abrirModalEditar(producto) {
             document.getElementById('modalTitulo').textContent     = "Editar Producto";
             document.getElementById('formProducto').action         = "<?= base_url('productos/actualizar') ?>";
+            document.getElementById('formProducto').dataset.mode   = "editar";
             document.getElementById('edit_id').value               = producto.id_producto;
             document.getElementById('edit_codigo').value           = producto.codigo ?? "";
+            document.getElementById('edit_codigo').dataset.manual = "true";
             document.getElementById('edit_nombre').value           = producto.nombre;
             document.getElementById('edit_categoria').value        = producto.categoria;
             document.getElementById('edit_unidad').value           = producto.unidad_venta;
@@ -479,8 +539,10 @@
         <?php elseif (session()->getFlashdata('modalProducto') === 'editar'): ?>
             document.getElementById('modalTitulo').textContent = "Editar Producto";
             document.getElementById('formProducto').action = "<?= base_url('productos/actualizar') ?>";
+            document.getElementById('formProducto').dataset.mode = "editar";
             document.getElementById('edit_id').value = <?= json_encode(old('id_producto', '')) ?>;
             document.getElementById('edit_codigo').value = <?= json_encode(old('codigo', '')) ?>;
+            document.getElementById('edit_codigo').dataset.manual = "true";
             document.getElementById('edit_nombre').value = <?= json_encode(old('nombre', '')) ?>;
             document.getElementById('edit_categoria').value = <?= json_encode(old('categoria', 'frutas')) ?>;
             document.getElementById('edit_unidad').value = <?= json_encode(old('unidad_venta', 'kilos')) ?>;

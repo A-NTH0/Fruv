@@ -16,6 +16,7 @@ $routes->get('/', 'LogingController::login');
 $routes->get('dashboard', 'HomeController::index');
 
 $routes->get('productos', 'ProductosController::index');
+$routes->get('productos/sugerir-codigo', 'ProductosController::sugerirCodigo');
 $routes->post('productos/guardar', 'ProductosController::guardar');
 $routes->post('productos/actualizar', 'ProductosController::actualizar');
 $routes->post('productos/cambiarEstado/(:num)', 'ProductosController::cambiarEstado/$1');

@@ -40,10 +40,10 @@ class ProductosController extends BaseController
     public function guardar()
     {
         $model  = new ProductoModel();
+        $nombre = trim((string) $this->request->getPost('nombre'));
         $codigo = trim((string) $this->request->getPost('codigo'));
-        $nombre = trim($this->request->getPost('nombre'));
 
-        if (! $this->validate(['codigo' => 'required|max_length[50]'])) {
+        if (! $this->validate(['nombre' => 'required', 'codigo' => 'required|max_length[50]'])) {
             return redirect()->back()->withInput()
                 ->with('error', implode(' ', $this->validator->getErrors()))
                 ->with('modalProducto', 'nuevo');
@@ -70,7 +70,6 @@ class ProductosController extends BaseController
         }
 
         $precio = (float) ($this->request->getPost('precio') ?: 0);
-
         $model->guardarProducto([
             'codigo'       => $codigo,
             'nombre'       => $nombre,
@@ -90,10 +89,10 @@ class ProductosController extends BaseController
     {
         $id     = (int) $this->request->getPost('id_producto');
         $model  = new ProductoModel();
+        $nombre = trim((string) $this->request->getPost('nombre'));
         $codigo = trim((string) $this->request->getPost('codigo'));
-        $nombre = trim($this->request->getPost('nombre'));
 
-        if ($id < 1 || ! $this->validate(['codigo' => 'required|max_length[50]'])) {
+        if ($id < 1 || ! $this->validate(['nombre' => 'required', 'codigo' => 'required|max_length[50]'])) {
             $error = $id < 1
                 ? 'El producto seleccionado no es válido.'
                 : implode(' ', $this->validator->getErrors());
@@ -135,7 +134,6 @@ class ProductosController extends BaseController
         }
 
         $precio = (float) ($this->request->getPost('precio') ?: 0);
-
         $model->actualizarProducto($id, [
             'codigo'       => $codigo,
             'nombre'       => $nombre,
@@ -149,6 +147,18 @@ class ProductosController extends BaseController
         ]);
 
         return redirect()->to(base_url('productos'));
+    }
+
+    public function sugerirCodigo()
+    {
+        $nombre = trim((string) $this->request->getGet('nombre'));
+        if ($nombre === '') {
+            return $this->response->setJSON(['codigo' => '']);
+        }
+
+        return $this->response->setJSON([
+            'codigo' => (new ProductoModel())->generarCodigoSugerido($nombre),
+        ]);
     }
 
     public function cambiarEstado($id = null)

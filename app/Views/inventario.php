@@ -52,15 +52,32 @@
                                     <?php 
                                     $mapaExis = [];
                                     foreach ($existencias as $ex) { $mapaExis[$ex['nombre']] = $ex['exis_venta']; }
-                                    
+                                    $mapaCompras = [];
+                                    foreach ($comprasAnteriores as $compra) {
+                                        $mapaCompras[$compra['id_producto2']] = $compra;
+                                    }
+
                                     foreach ($productos as $p): 
                                         $stockActual = $mapaExis[$p['nombre']] ?? 0;
+                                        $compraAnterior = $mapaCompras[$p['id_producto']] ?? [];
                                     ?>
-                                        <option data-id="<?= $p['id_producto'] ?>" value="<?= esc($p['nombre']) ?> (Stock actual: <?= $stockActual ?>)"></option>
+                                        <option
+                                            data-id="<?= esc($p['id_producto']) ?>"
+                                            data-stock="<?= esc($stockActual) ?>"
+                                            data-precio="<?= esc($compraAnterior['precio_compra'] ?? '') ?>"
+                                            data-unidad-compra="<?= esc($compraAnterior['unidad_compra'] ?? '') ?>"
+                                            data-unidad-venta="<?= esc($compraAnterior['unidad_venta'] ?? '') ?>"
+                                            data-equivalente="<?= esc($compraAnterior['equivalente'] ?? '') ?>"
+                                            data-tiene-historial="<?= isset($compraAnterior['id_producto2']) ? '1' : '0' ?>"
+                                            value="<?= esc($p['nombre']) ?>"
+                                            label="<?= esc($p['nombre']) ?> (Stock actual: <?= esc($stockActual) ?>)"></option>
                                     <?php endforeach; ?>
                                 </datalist>
                                 <input type="hidden" name="id_producto2" id="id_producto_hidden">
                             </div>
+                            <p id="ayuda-compra-anterior" class="mt-2 ml-1 text-xs text-gray-400">
+                                Selecciona un producto para cargar los datos de su última compra.
+                            </p>
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
@@ -433,6 +450,6 @@
     <script>
         const BASE_URL = "<?= rtrim(base_url(), '/') ?>/";
     </script>
-    <script src="<?= base_url('js/inventario.js') ?>"></script>
+    <script src="<?= base_url('js/inventario.js') ?>?v=<?= filemtime(FCPATH . 'js/inventario.js') ?>"></script>
 </body>
 </html> 
