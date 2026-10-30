@@ -430,6 +430,7 @@ function verDetallePedido(idPedido) {
                 <div class="grid grid-cols-2 gap-3 text-sm">
                     <div><span class="text-gray-500">Nombre:</span> <span class="font-medium">${p.cliente_nombre} ${p.cliente_apellido || ''}</span></div>
                     <div><span class="text-gray-500">Teléfono:</span> <span class="font-medium">${p.cliente_telefono || 'N/A'}</span></div>
+                    ${p.cliente_telefono ? `<div class="col-span-2"><button type="button" onclick="enviarTicketWhatsApp(${p.id_pedido})" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-bold"><i data-lucide="message-circle" class="w-4 h-4"></i> Enviar ticket por WhatsApp</button></div>` : ''}
                 </div>
             </div>
             <div class="bg-gradient-to-r from-rose-50 to-orange-50 p-4 rounded-xl">

@@ -199,4 +199,17 @@ class App extends BaseConfig
      * @see http://www.w3.org/TR/CSP/
      */
     public bool $CSPEnabled = false;
+
+    public function __construct()
+    {
+        parent::__construct();
+
+        // Acceso por IP local: usa el host con el que el navegador abrió el sitio.
+        // Solo acepta localhost o una IPv4 (evita inyección por cabecera Host).
+        if (PHP_SAPI !== 'cli' && ! empty($_SERVER['HTTP_HOST'])
+            && preg_match('/^(localhost|(\d{1,3}\.){3}\d{1,3})(:\d+)?$/', $_SERVER['HTTP_HOST'])) {
+            $esquema       = (! empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $this->baseURL = $esquema . '://' . $_SERVER['HTTP_HOST'] . '/Fruv/public/';
+        }
+    }
 }

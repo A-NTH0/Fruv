@@ -328,7 +328,7 @@ async function tomarPedidoDisponible(idPedido) {
     }
 }
 
-const SONDEO_MS = 8000;
+const SONDEO_MS = 5000;
 let sondeoTimer  = null;
 let sincronizando = false;
 let tituloBase   = document.title;
@@ -346,7 +346,7 @@ async function sincronizarPedidos(mostrarToastManual = false) {
     try {
         const url = BASE_URL + 'repartidores/actualizaciones'
                   + (mostrarToastManual || !firmaActual ? '' : '?firma=' + encodeURIComponent(firmaActual));
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const res = await (window.fruverFetch || fetch)(url, { headers: { 'Accept': 'application/json' } });
         if (!res.ok) { marcarConexion(false); return; }
         const data = await res.json();
         if (!data.ok) return;
@@ -420,7 +420,7 @@ function programarSondeo() {
     sondeoTimer = setTimeout(async () => {
         await sincronizarPedidos(false);
         programarSondeo();
-    }, SONDEO_MS);
+    }, window.fruverFrecuenciaMs ? fruverFrecuenciaMs(SONDEO_MS) : SONDEO_MS);
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -430,6 +430,8 @@ document.addEventListener('visibilitychange', () => {
         sincronizarPedidos(false).then(programarSondeo);
     }
 });
+
+window.addEventListener('fruver:frecuencia', programarSondeo);
 
 // Exponer funciones al objeto global para eventos onclick del menú y tarjetas
 window.cambiarVistaRep       = cambiarVistaRep;

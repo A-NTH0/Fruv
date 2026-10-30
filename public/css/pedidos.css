@@ -84,6 +84,7 @@ body { overflow-x: hidden; margin: 0; }
 .btn-rep { background: #5b6aa8; } .btn-cancel { background: #75646a; } .btn-abono { background: #8d4a86; width: 100%; }
 .icon-btn { border: 0; border-radius: 0.5rem; padding: 0.28rem; cursor: pointer; display: inline-flex; }
 .icon-edit { background: var(--fv-mango-bg); color: var(--fv-mango); } .icon-view { background: var(--fv-sky-bg); color: var(--fv-sky); } .icon-del { background: #fef2f2; color: #ef4444; }
+.icon-wa { background: #f0fdf4; color: #16a34a; }
 .icon-btn:hover { filter: brightness(0.95); }
 
 .tag { font-size: 0.6rem; font-weight: 700; border-radius: 999px; padding: 0.05rem 0.45rem; }

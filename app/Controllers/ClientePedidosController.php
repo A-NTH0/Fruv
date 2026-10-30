@@ -29,6 +29,7 @@ class ClientePedidosController extends BaseController
     public function estados()
     {
         $idCliente = (int) session()->get('cliente_id');
+        session_write_close(); // libera el bloqueo de sesión del sondeo
         $ids       = array_values(array_filter(array_map('intval', explode(',', (string) $this->request->getGet('ids')))));
         $ids       = array_slice($ids, 0, 50);
 

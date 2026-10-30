@@ -64,6 +64,7 @@ class RepartidoresController extends BaseController
         }
 
         $idRepartidor = (int) session()->get('repartidor_id');
+        session_write_close(); // libera el bloqueo de sesión: el sondeo no espera a otras peticiones
         $datos        = $this->obtenerDatosEntregas($idRepartidor);
 
         // RNF-08: si nada cambió desde la última firma del cliente, respuesta mínima.

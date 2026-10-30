@@ -108,6 +108,20 @@
                 <span>Vendedores</span>
             </a>
         <?php endif; ?>
+        <?php if (in_array($pagina_actual, ['pedidos', 'mis-pedidos'], true) || ($pagina_actual === 'repartidores' && $esRepartidor)): ?>
+            <div class="px-3 py-2">
+                <label for="selFrecuencia" class="block text-xs font-bold uppercase tracking-wider opacity-70 mb-1">Actualización automática</label>
+                <select id="selFrecuencia" class="w-full rounded-lg border px-2 py-1.5 text-sm text-gray-800"
+                        onchange="fruverCambiarFrecuencia(this.value)">
+                    <option value="3000">Cada 3 segundos</option>
+                    <option value="5000">Cada 5 segundos (recomendado)</option>
+                    <option value="10000">Cada 10 segundos</option>
+                    <option value="15000">Cada 15 segundos</option>
+                    <option value="30000">Cada 30 segundos</option>
+                    <option value="60000">Cada minuto</option>
+                </select>
+            </div>
+        <?php endif; ?>
         <a href="<?= base_url('logout') ?>" class="nav-item mt-auto">
             <i data-lucide="log-out" class="w-4 h-4" aria-hidden="true"></i>
             <span>Cerrar sesión</span>
@@ -115,6 +129,38 @@
     </nav>
 </aside>
 
+<script>
+  /* Frecuencia de actualización automática (se guarda por dispositivo) */
+  (function () {
+      const CLAVE = 'fruver_frecuencia_ms';
+      const PERMITIDOS = [3000, 5000, 10000, 15000, 30000, 60000];
+
+      window.fruverFrecuenciaMs = function (porDefecto) {
+          try {
+              const v = parseInt(localStorage.getItem(CLAVE), 10);
+              if (PERMITIDOS.includes(v)) return v;
+          } catch (e) { /* sin almacenamiento: usa el valor por defecto */ }
+          return porDefecto;
+      };
+
+      window.fruverCambiarFrecuencia = function (ms) {
+          try { localStorage.setItem(CLAVE, String(ms)); } catch (e) {}
+          window.dispatchEvent(new CustomEvent('fruver:frecuencia'));
+      };
+
+      // fetch con tiempo límite: una respuesta colgada ya no acumula conexiones en Apache
+      window.fruverFetch = function (url, opciones = {}, limiteMs = 8000) {
+          const ctl = new AbortController();
+          const t = setTimeout(() => ctl.abort(), limiteMs);
+          return fetch(url, { ...opciones, signal: ctl.signal }).finally(() => clearTimeout(t));
+      };
+
+      document.addEventListener('DOMContentLoaded', () => {
+          const sel = document.getElementById('selFrecuencia');
+          if (sel) sel.value = String(window.fruverFrecuenciaMs(5000));
+      });
+  })();
+</script>
 <script src="https://unpkg.com/lucide@latest"></script>
 <script>
   if (window.lucide) {

@@ -1,5 +1,5 @@
 /* Mis pedidos: estado, pago, cancelación y abonos; se actualiza sin recargar la página. */
-const INTERVALO_MS = 15000;
+const INTERVALO_MS = 5000;
 
 const CLASES_BADGE = ['rose', 'amber', 'blue', 'indigo', 'emerald', 'green', 'slate', 'red'].map(c => 'badge-' + c);
 
@@ -188,18 +188,21 @@ function aplicarEstado(id, e) {
     }
 }
 
+let sondeoEnCurso = false;
 async function sondearEstados(forzar = false) {
-    if (document.hidden && forzar !== true) return;
+    if (sondeoEnCurso || (document.hidden && forzar !== true)) return;
     const ids = [...document.querySelectorAll('.pedido-card')].map(c => c.dataset.id);
     if (!ids.length) return;
 
+    sondeoEnCurso = true;
     try {
-        const res = await fetch(`${BASE_URL}mis-pedidos/estados?ids=${ids.join(',')}`, {
+        const res = await (window.fruverFetch || fetch)(`${BASE_URL}mis-pedidos/estados?ids=${ids.join(',')}`, {
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
         });
         const data = await res.json();
         if (data.success) Object.entries(data.estados).forEach(([id, e]) => aplicarEstado(id, e));
     } catch (e) { /* sin conexión: se reintenta en el siguiente ciclo */ }
+    finally { sondeoEnCurso = false; }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -209,6 +212,12 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPagoYAcciones(card);
     });
 
-    setInterval(sondearEstados, INTERVALO_MS);
+    let timerEstados = null;
+    const programarSondeoEstados = () => {
+        clearInterval(timerEstados);
+        timerEstados = setInterval(sondearEstados, window.fruverFrecuenciaMs ? fruverFrecuenciaMs(INTERVALO_MS) : INTERVALO_MS);
+    };
+    programarSondeoEstados();
+    window.addEventListener('fruver:frecuencia', programarSondeoEstados);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) sondearEstados(); });
 });

@@ -131,6 +131,7 @@ function crearTarjetaPedido(p, estado) {
         <div class="order-card-actions">
             <div class="tp-actions">${botonesTarjeta(p, estado, enEspera)}</div>
             <div class="tp-icons">
+                ${p.cliente_telefono ? `<button class="icon-btn icon-wa" onclick="enviarTicketWhatsApp(${id})" title="Enviar ticket por WhatsApp" aria-label="Enviar ticket del pedido ${id} por WhatsApp"><i data-lucide="message-circle"></i></button>` : ''}
                 <button class="icon-btn icon-view" onclick="verDetallePedido(${id})" title="Ver detalle" aria-label="Ver detalle del pedido ${id}"><i data-lucide="eye"></i></button>
                 <button class="icon-btn icon-edit" onclick="editarPedido(${id})" title="Editar pedido" aria-label="Editar pedido ${id}"><i data-lucide="pencil"></i></button>
                 <button class="icon-btn icon-del" onclick="confirmarEliminarPedido(${id})" title="Eliminar pedido" aria-label="Eliminar pedido ${id}"><i data-lucide="trash-2"></i></button>
@@ -361,7 +362,7 @@ function filtrarTarjetasKanbanLocal(q) {
 }
 
 /* ───────── Sondeo en vivo: contadores, aviso de nuevos y tarjetas que se mueven solas ───────── */
-const INTERVALO_TABLERO_MS = 10000;
+const INTERVALO_TABLERO_MS = 5000;
 const ESTADO_A_STAT = {
     pedido: 'nuevo', confirmado: 'confirmado', en_transito: 'transito',
     entregado: 'completado', credito: 'credito', pagado: 'pagado', cancelado: 'cancelado',
@@ -385,14 +386,18 @@ async function refrescarColumna(estado) {
     return true;
 }
 
+let timerTablero = null;
+let cicloTableroEnCurso = false;
+
 function iniciarSondeoPedidos() {
     const el = document.querySelector('.stat-value[data-stat="nuevo"]');
     ultimoNuevo = el ? parseInt(el.textContent, 10) || 0 : 0;
 
-    setInterval(async () => {
-        if (document.hidden || (window.Swal && Swal.isVisible())) return;
+    const ciclo = async () => {
+        if (cicloTableroEnCurso || document.hidden || (window.Swal && Swal.isVisible())) return;
+        cicloTableroEnCurso = true;
         try {
-            const res  = await fetch(BASE_URL + 'pedidos/getStatsActualizados');
+            const res  = await (window.fruverFetch || fetch)(BASE_URL + 'pedidos/getStatsActualizados');
             const data = await res.json();
             if (!data.success) return;
 
@@ -419,7 +424,15 @@ function iniciarSondeoPedidos() {
                 if (await refrescarColumna(estado)) ultimosTotales[estado] = actuales[estado];
             }
         } catch (e) { /* se reintenta en el siguiente ciclo */ }
-    }, INTERVALO_TABLERO_MS);
+        finally { cicloTableroEnCurso = false; }
+    };
+
+    const programar = () => {
+        clearInterval(timerTablero);
+        timerTablero = setInterval(ciclo, window.fruverFrecuenciaMs ? fruverFrecuenciaMs(INTERVALO_TABLERO_MS) : INTERVALO_TABLERO_MS);
+    };
+    programar();
+    window.addEventListener('fruver:frecuencia', programar);
 }
 
 let busquedaPedidosTimer;
@@ -508,3 +521,65 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     iniciarSondeoPedidos();
 });
+
+/* ───────── Ticket por WhatsApp desde el Administrador ───────── */
+function dineroWA(v) {
+    return '$' + Number(v || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function armarLinkWhatsAppAdmin(p, detalles, historial) {
+    const digitos = String(p.cliente_telefono || '').replace(/\D/g, '');
+    if (!digitos) return null;
+    const tel = digitos.length === 10 ? '52' + digitos : digitos;
+
+    const logisticos = ['pedido', 'confirmado', 'en_transito', 'entregado', 'cancelado'];
+    const estado = [...(historial || [])].reverse().map(h => h.estado).find(e => logisticos.includes(e)) || 'pedido';
+    const estadoTxt = {
+        pedido:      'fue RECIBIDO 📝',
+        confirmado:  'está CONFIRMADO y preparándose 📦',
+        en_transito: 'va EN CAMINO a tu domicilio 🛵',
+        entregado:   'ha sido ENTREGADO ✅',
+        cancelado:   'fue CANCELADO ❌',
+    }[estado];
+
+    const lineas = (detalles || []).map(d => {
+        const sub = Number.isFinite(parseFloat(d.total)) ? d.total : d.cantidad * d.precio_venta;
+        return `• ${parseFloat(d.cantidad)} ${d.unidad_venta} de ${d.nombre_producto}: ${dineroWA(sub)}`;
+    }).join('\n');
+
+    const cobro = p.modalidad_pago === 'credito'
+        ? `A crédito (Saldo pendiente: ${dineroWA(p.deuda_restante)})`
+        : `De contado (${dineroWA(p.total)})`;
+
+    const msg = `¡Hola ${p.cliente_nombre || ''}! 🍎\n`
+              + `Tu pedido #${p.id_pedido} de *FRUVER* ${estadoTxt}.\n\n`
+              + `*Resumen de tu ticket:*\n${lineas}\n`
+              + `*Total:* ${dineroWA(p.total)}\n`
+              + `*Modalidad:* ${cobro}\n\n`
+              + `¡Gracias por comprar en Fruver!`;
+
+    return `https://wa.me/${tel}?text=${encodeURIComponent(msg)}`;
+}
+
+async function enviarTicketWhatsApp(idPedido) {
+    const ventana = window.open('', '_blank');   // se abre en el clic para que el navegador no la bloquee
+    try {
+        const res  = await fetch(`${BASE_URL}pedidos/obtenerDetallePedido?id_pedido=${idPedido}`);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || 'No se pudo cargar el pedido');
+
+        const link = armarLinkWhatsAppAdmin(data.pedido, data.detalles, data.historial_estados);
+        if (!link) {
+            if (ventana) ventana.close();
+            Swal.fire('Sin teléfono', 'Este cliente no tiene un teléfono registrado.', 'info');
+            return;
+        }
+        if (ventana) { ventana.opener = null; ventana.location.href = link; }
+        else window.open(link, '_blank');
+    } catch (e) {
+        if (ventana) ventana.close();
+        console.error(e);
+        Swal.fire('Error', 'No se pudo preparar el ticket de WhatsApp.', 'error');
+    }
+}
+window.enviarTicketWhatsApp = enviarTicketWhatsApp;

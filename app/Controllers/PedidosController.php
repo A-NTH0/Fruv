@@ -414,6 +414,7 @@ class PedidosController extends BaseController
 
     public function getStatsActualizados()
     {
+        session_write_close(); // libera el bloqueo de sesión del sondeo
         $pedidoModel = new PedidoModel();
         return $this->response->setJSON([
             'success' => true,
