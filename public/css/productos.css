@@ -1,117 +1,109 @@
-body {
-    margin: 0;
-    padding: 0;
-}
+/* ==========================================================================
+   Catálogo de productos (administrador) y catálogo del cliente.
+   La tarjeta funciona como una etiqueta de mercado: foto arriba, nombre,
+   y abajo el precio en serif junto a la disponibilidad.
+   ========================================================================== */
+
+body { margin: 0; padding: 0; }
 
 .main-content {
-    margin-left: 260px; 
-    width: calc(100% - 260px);
-    background-color: #f9fafb;
     min-height: 100vh;
-    padding: 2.5rem !important; 
     box-sizing: border-box;
     display: block;
 }
 
-/* Tarjetas de Productos */
+/* ---------- Tarjeta de producto ---------- */
 .producto-card {
-    background: white;
-    border-radius: 2.5rem; 
-    padding: 1.75rem;
-    transition: all 0.3s ease;
-    border: 1px solid #f1f5f9;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     height: 100%;
+    padding: 1.1rem 1.1rem 1.25rem;
+    background: var(--fv-surface, #fff);
+    border: 1px solid var(--fv-line);
+    border-radius: 1.35rem;
+    box-shadow: var(--fv-shadow-1);
+    transition: border-color .22s ease, box-shadow .22s ease;
+}
+.producto-card:hover { border-color: var(--fv-berry-200); box-shadow: var(--fv-shadow-2); }
+
+.producto-card h2, .producto-card h3 {
+    color: var(--fv-ink);
+    font-size: 1.12rem !important;
+    font-weight: 700 !important;
+    letter-spacing: .01em;
+    line-height: 1.25;
 }
 
-.producto-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05);
-    border-color: #ffe4e6;
+/* Precio: cifra serif, es lo primero que se busca en una etiqueta */
+main .producto-card .text-lg.font-extrabold {
+    font-family: var(--fv-font-display);
+    font-size: 1.55rem !important;
+    font-weight: 500;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
 }
 
-/* Estilo para tarjeta Inactiva (Inspirado en versión anterior) */
+/* Producto inactivo */
 .producto-card.producto-inactivo {
-    background: #fffafa;
-    border: 1.5px solid #fecdd3;
+    background: #fcf6f6;
+    border-color: var(--fv-berry-200);
 }
+.producto-card.producto-inactivo .img-container img { filter: grayscale(40%) opacity(.8); }
+.producto-card.producto-inactivo:hover .img-container img { filter: none; }
 
-.producto-card.producto-inactivo .img-container img {
-    filter: grayscale(35%) opacity(0.82);
-}
-
-.producto-card.producto-inactivo:hover .img-container img {
-    filter: grayscale(0%) opacity(1);
-}
-
-/* Pastillas de Estado ACTIVO / INACTIVO */
+/* ---------- Etiquetas de estado ---------- */
 .badge-estado {
-    font-size: 11px;
-    font-weight: 800;
-    padding: 4px 12px;
-    border-radius: 9999px;
-    letter-spacing: 0.05em;
+    padding: .28rem .75rem;
+    border-radius: 999px;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .04em;
     text-transform: uppercase;
     white-space: nowrap;
 }
+.badge-activo   { background: var(--fv-leaf-bg); color: var(--fv-leaf); box-shadow: inset 0 0 0 1px var(--fv-leaf-line); }
+.badge-inactivo { background: var(--fv-berry-100); color: #7a1228; box-shadow: inset 0 0 0 1px var(--fv-berry-200); }
 
-.badge-activo {
-    background-color: #dcfce7;
-    color: #15803d;
-}
-
-.badge-inactivo {
-    background-color: #fee2e2;
-    color: #b91c1c;
-}
-
+/* ---------- Foto ---------- */
 .img-container {
-    background: #f8fafc;
-    border-radius: 2rem;
-    height: 200px;
-    width: 100%;
-    overflow: hidden;
-    margin-bottom: 1.5rem;
     position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    height: auto;
+    margin-bottom: 1.15rem;
+    overflow: hidden;
+    background: var(--fv-berry-50);
+    border-radius: 1rem;
 }
-
 .img-container img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s ease;
+    transition: transform .5s cubic-bezier(.4, 0, .2, 1), filter .3s ease;
 }
+.producto-card:hover .img-container img { transform: scale(1.04); }
 
-.producto-card:hover .img-container img {
-    transform: scale(1.08);
-}
-
+/* ---------- Paginación (la genera el paginador de CodeIgniter) ---------- */
 #contenedor-dinamico nav {
     display: flex !important;
-    justify-content: center !important;
     align-items: center !important;
+    justify-content: center !important;
     width: 100% !important;
-    margin-top: 2.5rem !important;
-    margin-bottom: 1.5rem !important;
+    margin: 2.25rem 0 1.5rem !important;
 }
-
 #contenedor-dinamico .pagination {
     display: flex !important;
     flex-direction: row !important;
+    flex-wrap: wrap;
     align-items: center !important;
     justify-content: center !important;
-    gap: 8px !important;
+    gap: .5rem !important;
+    margin: 0 !important;
+    padding: 0 !important;
     list-style: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
 }
-
-#contenedor-dinamico .pagination li {
-    display: inline-block !important;
-    margin: 0 !important;
-    padding: 0 !important;
-}
+#contenedor-dinamico .pagination li { display: inline-block !important; margin: 0 !important; padding: 0 !important; }
 
 #contenedor-dinamico nav a,
 #contenedor-dinamico nav span,
@@ -120,54 +112,48 @@ body {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    min-width: 40px !important;
-    height: 40px !important;
-    padding: 0 14px !important;
-    border-radius: 12px !important;
-    font-weight: 700 !important;
-    font-size: 14px !important;
-    color: #e11d48 !important;             
-    background-color: #fff1f2 !important;   
-    text-decoration: none !important;
-    transition: all 0.2s ease-in-out !important;
+    min-width: 2.6rem !important;
+    height: 2.6rem !important;
+    padding: 0 .9rem !important;
     box-sizing: border-box !important;
-    border: none !important;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+    background: #fff !important;
+    border: 1px solid var(--fv-line) !important;
+    border-radius: var(--fv-r-md) !important;
+    color: var(--fv-ink-2) !important;
+    font-size: .9rem !important;
+    font-weight: 600 !important;
+    text-decoration: none !important;
     cursor: pointer;
+    transition: background-color .18s ease, border-color .18s ease, color .18s ease !important;
 }
-
 #contenedor-dinamico nav a:hover,
 #contenedor-dinamico .pagination li a:hover {
-    background-color: #ffe4e6 !important;   
-    transform: translateY(-2px) !important;  
+    background: var(--fv-berry-50) !important;
+    border-color: var(--fv-granada) !important;
+    color: var(--fv-granada) !important;
 }
-
 #contenedor-dinamico .active a,
 #contenedor-dinamico .active span,
 #contenedor-dinamico li.active a,
 #contenedor-dinamico li.active span {
-    background-color: #e11d48 !important;    
-    color: #ffffff !important;              
-    box-shadow: 0 4px 12px rgba(225, 29, 72, 0.25) !important; 
-    transform: none !important;
+    background: var(--fv-tomate) !important;
+    border-color: var(--fv-tomate) !important;
+    color: #fff !important;
+    box-shadow: 0 6px 14px rgba(185, 28, 53, .22) !important;
     cursor: default !important;
 }
-
 #contenedor-dinamico .disabled a,
 #contenedor-dinamico .disabled span,
 #contenedor-dinamico li.disabled a,
 #contenedor-dinamico li.disabled span {
-    opacity: 0.4 !important;
-    background-color: #f3f4f6 !important;    
-    color: #9ca3af !important;              
+    opacity: .45 !important;
+    background: #f6f1f1 !important;
+    color: #75646a !important;
     cursor: not-allowed !important;
-    transform: none !important;
 }
 
-@media (max-width: 1024px) {
-    .main-content {
-        margin-left: 0;
-        width: 100%;
-        padding: 1.5rem !important;
-    }
+/* ---------- Ajustes de pantalla ---------- */
+@media (max-width: 760px) {
+    .producto-card { padding: 1rem; border-radius: 1.15rem; }
+    main .producto-card .text-lg.font-extrabold { font-size: 1.4rem !important; }
 }

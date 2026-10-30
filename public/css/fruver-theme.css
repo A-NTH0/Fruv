@@ -1,0 +1,297 @@
+/* ==========================================================================
+   Fruver · Tema compartido (rediseño visual)
+   Idea: un mercado de barrio con buen gusto. Vino granada para la estructura,
+   tomate para las acciones, fondo claro con un matiz cálido y un verde hoja
+   que solo aparece para decir "fresco / disponible / entregado".
+   Se carga desde accesibilidad.css, por lo que llega a todas las vistas.
+   ========================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap');
+
+:root {
+    /* Rojos: estructura y acciones */
+    --fv-wine-950: #2a0a12;
+    --fv-wine-900: #3d0f1b;
+    --fv-wine-800: #561425;
+    --fv-granada: #8e1b33;       /* títulos de acento, bordes activos */
+    --fv-tomate: #b91c35;        /* acción principal (blanco encima: 6.4:1) */
+    --fv-cereza: #9a1329;        /* hover de acción principal */
+    --fv-fresa: #e04a5f;         /* solo decorativo (puntos, líneas) */
+    --fv-berry-50: #fdf3f4;
+    --fv-berry-100: #fae4e7;
+    --fv-berry-200: #f2c7ce;
+
+    /* Neutros cálidos */
+    --fv-ink: #2a1a1d;
+    --fv-ink-2: #4b3a3e;
+    --fv-muted: #6f5e62;
+    --fv-line: #eadfe0;
+    --fv-line-2: #dccdd0;
+    --fv-canvas: #fbf8f7;
+    --fv-surface: #ffffff;
+
+    /* Estados (semánticos, apagados para convivir con el rojo) */
+    --fv-leaf: #2f6b4b;   --fv-leaf-bg: #e8f3ec;   --fv-leaf-line: #bfdccb;
+    --fv-mango: #8f5509;  --fv-mango-bg: #fff2d9;  --fv-mango-line: #f0d9a6;
+    --fv-sky: #245a8a;    --fv-sky-bg: #e7f0f8;    --fv-sky-line: #c3d9ec;
+    --fv-plum: #6c2a63;   --fv-plum-bg: #f5e8f3;   --fv-plum-line: #e3c6de;
+    --fv-slate: #51596a;  --fv-slate-bg: #edeff3;  --fv-slate-line: #d5d9e1;
+
+    /* Forma */
+    --fv-r-sm: .6rem;
+    --fv-r-md: .85rem;
+    --fv-r-lg: 1.15rem;
+    --fv-shadow-1: 0 1px 2px rgba(61, 15, 27, .06), 0 6px 18px rgba(61, 15, 27, .05);
+    --fv-shadow-2: 0 2px 4px rgba(61, 15, 27, .06), 0 18px 40px rgba(61, 15, 27, .11);
+    --fv-focus: #561425;
+
+    /* Tipografía */
+    --fv-font-body: "Rubik", "Arimo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+    --fv-font-display: var(--fv-font-body);   /* una sola familia: más suave */
+
+    /* Alias para los estilos heredados que ya usaban estas variables */
+    --app-ink: var(--fv-ink);
+    --app-muted: var(--fv-muted);
+    --app-line: var(--fv-line);
+    --app-surface: var(--fv-surface);
+    --app-canvas: var(--fv-canvas);
+    --app-brand: var(--fv-tomate);
+    --app-brand-dark: var(--fv-cereza);
+    --app-radius: var(--fv-r-lg);
+    --app-shadow: var(--fv-shadow-1);
+}
+
+/* ---------- Base ---------- */
+html { -webkit-text-size-adjust: 100%; }
+html body, body[class] {
+    background-color: var(--fv-canvas);
+    color: var(--fv-ink);
+    font-family: var(--fv-font-body);
+}
+::selection { background: var(--fv-berry-200); color: var(--fv-wine-900); }
+
+/* Barras de desplazamiento discretas */
+* { scrollbar-width: thin; scrollbar-color: var(--fv-line-2) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: var(--fv-line-2); border: 3px solid transparent; border-radius: 999px; background-clip: content-box; }
+*::-webkit-scrollbar-thumb:hover { background: #c9b4b8; background-clip: content-box; border: 3px solid transparent; }
+
+/* Títulos de página: misma familia (Rubik), peso medio para que se vea suave */
+main h1, main h1[class] {
+    font-family: var(--fv-font-display);
+    font-weight: 500 !important;
+    letter-spacing: -.01em !important;
+    color: var(--fv-ink);
+}
+main h1 + p { color: var(--fv-muted); }
+
+main a:not([class]) { color: var(--fv-granada); text-underline-offset: .18em; }
+
+/* Pesos más suaves: Rubik en 700-900 se ve muy marcada */
+main .font-bold, main .font-extrabold { font-weight: 600; }
+main .font-black { font-weight: 700; }
+
+/* ---------- Utilidades de Tailwind reencaminadas a la paleta ---------- */
+main .bg-rose-600, main .bg-pink-600, main .bg-red-600 { background-color: var(--fv-tomate); }
+main .hover\:bg-rose-700:hover, main .hover\:bg-pink-700:hover, main .hover\:bg-rose-600:hover,
+main .hover\:bg-rose-500:hover, main .hover\:bg-red-700:hover { background-color: var(--fv-cereza); }
+main .bg-rose-50, main .bg-pink-50, main .hover\:bg-rose-50:hover, main .hover\:bg-pink-50:hover { background-color: var(--fv-berry-50); }
+main .bg-rose-100, main .bg-pink-100 { background-color: var(--fv-berry-100); }
+main .text-rose-400, main .text-rose-500, main .text-rose-600, main .text-pink-600, main .text-red-500,
+main .hover\:text-rose-500:hover, main .hover\:text-rose-600:hover, main .hover\:text-pink-600:hover { color: var(--fv-tomate); }
+main .text-rose-700 { color: var(--fv-granada); }
+main .border-rose-300 { border-color: var(--fv-berry-200); }
+main .focus\:ring-rose-500:focus, main .focus\:ring-pink-600:focus, main .focus\:ring-rose-200:focus { --tw-ring-color: rgba(142, 27, 51, .28); }
+main .focus\:border-pink-600:focus { border-color: var(--fv-granada); }
+main .shadow-rose-100 { --tw-shadow-color: rgba(142, 27, 51, .16); }
+
+main .text-gray-900, main .text-gray-800, main .text-slate-800 { color: var(--fv-ink); }
+main .text-gray-700 { color: var(--fv-ink-2); }
+main .text-gray-600 { color: #5c4b4f; }
+main .border-gray-200, main .border-gray-100, main .border-gray-50 { border-color: var(--fv-line); }
+main .bg-gray-50, main .hover\:bg-gray-50:hover { background-color: #faf5f5; }
+main .bg-gray-100 { background-color: #f3ecec; }
+
+main .bg-green-50, main .bg-emerald-50 { background-color: var(--fv-leaf-bg); }
+main .bg-green-100 { background-color: #d9ecdf; }
+main .border-green-200, main .border-emerald-100 { border-color: var(--fv-leaf-line); }
+main .text-green-700, main .text-green-800, main .text-green-900,
+main .text-emerald-600, main .text-emerald-700, main .text-emerald-800 { color: var(--fv-leaf); }
+main .bg-amber-50 { background-color: var(--fv-mango-bg); }
+main .border-amber-200 { border-color: var(--fv-mango-line); }
+main .text-amber-600, main .text-amber-700, main .text-amber-800, main .text-amber-900 { color: var(--fv-mango); }
+main .bg-red-50 { background-color: #fdf0f1; }
+main .border-red-200 { border-color: #f1c2c8; }
+main .text-red-800 { color: #7a1228; }
+main .text-purple-700 { color: var(--fv-plum); }
+
+/* Superficies blancas redondeadas: borde cálido y sombra suave */
+main .bg-white[class*="rounded"] { border-color: var(--fv-line); box-shadow: var(--fv-shadow-1); }
+
+/* ==========================================================================
+   Barra de navegación superior (la estructura la define menu.php; aquí solo
+   se le da identidad). El selector largo gana a los !important del menú.
+   ========================================================================== */
+html:root { --app-nav-height: 72px; }
+
+html body aside.sidebar {
+    background: linear-gradient(180deg, var(--fv-wine-900) 0%, var(--fv-wine-950) 100%) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, .06);
+    box-shadow: 0 6px 24px rgba(42, 10, 18, .22) !important;
+    gap: 1.25rem !important;
+}
+
+/* Marca: una granada pequeña y el nombre en serif */
+html body aside.sidebar .app-brand { min-width: 200px !important; gap: .1rem !important; }
+html body aside.sidebar .app-brand-name {
+    display: inline-flex !important;
+    align-items: center;
+    gap: .55rem;
+    font-family: var(--fv-font-display) !important;
+    font-size: 1.28rem !important;
+    font-weight: 500 !important;
+    letter-spacing: -.01em !important;
+    color: #fff;
+}
+html body aside.sidebar .app-brand-name::before {
+    content: "";
+    flex: 0 0 auto;
+    width: .8rem;
+    height: .8rem;
+    border-radius: 50%;
+    background: radial-gradient(circle at 34% 30%, #f48a98 0%, #d12a44 48%, #8e1b33 100%);
+    box-shadow: 0 0 0 3px rgba(224, 74, 95, .2);
+}
+html body aside.sidebar .app-brand-role {
+    padding-left: 1.35rem;
+    color: #cdb3b9 !important;
+    font-size: .72rem !important;
+    letter-spacing: .01em;
+}
+
+html body aside.sidebar .nav-item {
+    border-radius: .65rem !important;
+    color: #ecdde0 !important;
+    font-size: .86rem !important;
+    font-weight: 500 !important;
+    transition: background .18s ease, color .18s ease !important;
+}
+html body aside.sidebar .nav-item i,
+html body aside.sidebar .nav-item svg { color: #d4b9bf !important; }
+html body aside.sidebar .nav-item:hover { background: rgba(255, 255, 255, .08) !important; color: #fff !important; }
+html body aside.sidebar .nav-item:hover i,
+html body aside.sidebar .nav-item:hover svg { color: #fff !important; }
+
+/* Página actual: pastilla clara sobre el vino (se lee de un vistazo) */
+html body aside.sidebar .nav-item.active {
+    background: #fbeef0 !important;
+    color: var(--fv-wine-900) !important;
+    font-weight: 700 !important;
+    box-shadow: none !important;
+}
+html body aside.sidebar .nav-item.active i,
+html body aside.sidebar .nav-item.active svg { color: var(--fv-granada) !important; }
+
+html body aside.sidebar .nav-badge {
+    background: #c7253e !important;
+    color: #fff !important;
+}
+html body aside.sidebar .nav-item[href$="/logout"] {
+    border: 1px solid rgba(255, 255, 255, .16) !important;
+    margin-left: auto !important;
+}
+html body aside.sidebar .nav-item[href$="/logout"]:hover { border-color: rgba(255, 255, 255, .34) !important; }
+
+/* Contenido principal: aire y ancho de lectura cómodo */
+html body .main-content, html body .cli-main, html body .sidebar ~ main {
+    padding-top: 2rem !important;
+    padding-bottom: 3rem !important;
+}
+.mobile-menu-btn, .sidebar-overlay { display: none !important; }
+
+/* ---------- Escritorio angosto: todo cabe sin cortar "Cerrar sesión" ---------- */
+@media (max-width: 1400px) and (min-width: 981px) {
+    html body aside.sidebar { gap: 1rem !important; padding: 0 1.1rem !important; }
+    html body aside.sidebar .app-brand { min-width: 170px !important; }
+    html body aside.sidebar .nav-item { padding: .6rem .7rem !important; font-size: .84rem !important; }
+    /* solo en menús largos (administrador): el texto sigue disponible para lectores de pantalla */
+    html body aside.sidebar nav:has(> .nav-item:nth-child(7)) .nav-item[href$="/logout"] span {
+        position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+        overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    html body aside.sidebar nav:has(> .nav-item:nth-child(7)) .nav-item[href$="/logout"] { padding: .6rem .75rem !important; }
+}
+
+/* ---------- Tablet ---------- */
+@media (max-width: 980px) {
+    html:root { --app-nav-height: 64px; }
+    html body aside.sidebar .app-brand { min-width: 150px !important; }
+    html body aside.sidebar .app-brand-name { font-size: 1.12rem !important; }
+}
+
+/* ---------- Celular: marca arriba, navegación como barra inferior ---------- */
+@media (max-width: 760px) {
+    html:root { --app-nav-height: 56px; --fv-bottom-nav: 68px; }
+
+    html body aside.sidebar {
+        padding: 0 1rem !important;
+        justify-content: space-between;
+    }
+    html body aside.sidebar .app-brand {
+        min-width: 0 !important;
+        max-width: none !important;
+        flex-direction: row !important;
+        align-items: baseline !important;
+        gap: .65rem !important;
+    }
+    html body aside.sidebar .app-brand-name { font-size: 1.12rem !important; }
+    html body aside.sidebar .app-brand-role { padding-left: 0; font-size: .7rem !important; }
+
+    html body aside.sidebar nav {
+        position: fixed !important;
+        inset: auto 0 0 0 !important;
+        z-index: 1001;
+        height: calc(var(--fv-bottom-nav) + env(safe-area-inset-bottom, 0px)) !important;
+        padding: .4rem .5rem calc(.4rem + env(safe-area-inset-bottom, 0px)) !important;
+        gap: .2rem !important;
+        justify-content: space-around !important;
+        background: var(--fv-wine-900) !important;
+        border-top: 1px solid rgba(255, 255, 255, .1);
+        box-shadow: 0 -8px 24px rgba(42, 10, 18, .28);
+        overflow-x: auto !important;
+        /* el borde derecho se desvanece para sugerir que hay más opciones */
+        -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 1.5rem), transparent 100%);
+                mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 1.5rem), transparent 100%);
+    }
+    html body aside.sidebar nav .nav-item {
+        flex: 1 0 4.6rem !important;
+        flex-direction: column !important;
+        gap: .22rem !important;
+        min-width: 4.4rem;
+        min-height: 3.1rem !important;
+        padding: .4rem .45rem !important;
+        font-size: .66rem !important;
+        line-height: 1.15 !important;
+        white-space: normal !important;
+        text-align: center;
+        max-width: 7.5rem;
+    }
+    html body aside.sidebar nav .nav-item i,
+    html body aside.sidebar nav .nav-item svg { width: 20px !important; height: 20px !important; }
+    html body aside.sidebar nav .nav-item[href$="/logout"] {
+        margin-left: 0 !important;
+        border: 0 !important;
+    }
+    html body aside.sidebar .nav-badge {
+        position: absolute;
+        top: .15rem;
+        right: calc(50% - 1.55rem);
+        margin: 0 !important;
+    }
+    html body aside.sidebar nav .nav-item { position: relative; }
+
+    /* deja espacio libre para que la barra inferior no tape el final de la página */
+    html body .main-content, html body .cli-main, html body .sidebar ~ main {
+        padding-top: 1.25rem !important;
+        padding-bottom: calc(var(--fv-bottom-nav) + 1.5rem + env(safe-area-inset-bottom, 0px)) !important;
+    }
+}

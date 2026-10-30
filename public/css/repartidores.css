@@ -1,56 +1,37 @@
-.flex {
-    display: flex;
-}
-
-aside {
-    width: 260px; 
-    position: fixed;
-    height: 100vh;
-    left: 0;
-    top: 0;
-    z-index: 50;
-    background-color: #1a0b0b; 
-}
+/* ==========================================================================
+   Repartidores (administración). La barra de navegación ya no se define aquí.
+   ========================================================================== */
 
 main.main-content {
-    margin-left: 260px; 
-    width: calc(100% - 260px);
-    background-color: #f9fafb;
     min-height: 100vh;
-    padding: 2.5rem !important; 
     box-sizing: border-box;
 }
 
+/* ---------- Tarjeta de repartidor ---------- */
 .repartidor-card {
-    background: white;
-    border-radius: 1.5rem;
-    border: 1px solid #f1f5f9;
-    padding: 1.75rem;
-    transition: all 0.3s ease;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
-    width: 100%; 
+    width: 100%;
     height: 100%;
+    padding: 1.5rem;
+    background: var(--fv-surface, #fff);
+    border: 1px solid var(--fv-line);
+    border-radius: 1.35rem !important;
+    box-shadow: var(--fv-shadow-1);
+    transition: border-color .2s ease, box-shadow .2s ease;
 }
+.repartidor-card:hover { border-color: var(--fv-berry-200); box-shadow: var(--fv-shadow-2); }
+.repartidor-card h2, .repartidor-card h3 { letter-spacing: .005em; }
 
-.repartidor-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05);
-}
+.icon-box { transition: background-color .2s ease; }
+.repartidor-card .icon-box { background: var(--fv-berry-100); color: var(--fv-granada); }
 
-.icon-box {
-    transition: all 0.3s ease;
-}
-
-.repartidor-card:hover .icon-box {
-    transform: scale(1.1) rotate(-5deg);
-}
-
+/* ---------- Paginación ---------- */
 nav[aria-label="Pager"] {
-    margin-top: 2.5rem;
     display: flex;
     justify-content: center;
+    margin-top: 2.25rem;
 }
 
 #contenedor-dinamico nav,
@@ -58,21 +39,17 @@ nav[aria-label="Pager"] {
 #contenedor-dinamico .pagination {
     display: flex !important;
     flex-direction: row !important;
-    justify-content: center !important;
+    flex-wrap: wrap;
     align-items: center !important;
-    gap: 8px !important; 
-    list-style: none !important;
-    padding: 0 !important;
-    margin: 2.5rem 0 0 0 !important;
+    justify-content: center !important;
+    gap: .5rem !important;
     width: 100% !important;
-}
-
-#contenedor-dinamico ul li,
-#contenedor-dinamico .pagination li {
-    display: inline-block !important;
-    margin: 0 !important;
+    margin: 2.25rem 0 0 0 !important;
     padding: 0 !important;
+    list-style: none !important;
 }
+#contenedor-dinamico ul li,
+#contenedor-dinamico .pagination li { display: inline-block !important; margin: 0 !important; padding: 0 !important; }
 
 #contenedor-dinamico nav a,
 #contenedor-dinamico nav span,
@@ -81,44 +58,38 @@ nav[aria-label="Pager"] {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 40px !important;   
-    height: 40px !important;
-    border-radius: 12px !important; 
-    font-weight: 600 !important;
-    font-size: 14px !important;
-    color: #db2777 !important; 
-    background-color: #ffffff !important;
-    text-decoration: none !important;
-    transition: all 0.2s ease !important;
+    min-width: 2.6rem !important;
+    height: 2.6rem !important;
+    padding: 0 .9rem !important;
     box-sizing: border-box !important;
-    border: none !important;
+    background: #fff !important;
+    border: 1px solid var(--fv-line) !important;
+    border-radius: var(--fv-r-md) !important;
+    color: var(--fv-ink-2) !important;
+    font-size: .9rem !important;
+    font-weight: 600 !important;
+    text-decoration: none !important;
+    transition: background-color .18s ease, border-color .18s ease, color .18s ease !important;
 }
-
 #contenedor-dinamico nav a:hover,
 #contenedor-dinamico .pagination li a:hover {
-    background-color: #fdf2f8 !important; 
+    background: var(--fv-berry-50) !important;
+    border-color: var(--fv-granada) !important;
+    color: var(--fv-granada) !important;
 }
-
 #contenedor-dinamico .active a,
 #contenedor-dinamico .active span,
 #contenedor-dinamico li.active a,
 #contenedor-dinamico li.active span,
 #contenedor-dinamico nav > span {
-    background-color: #fce7f3 !important; 
-    color: #be185d !important;          
-    font-weight: 700 !important;
-    box-shadow: none !important;         
-    transform: none !important;
+    background: var(--fv-tomate) !important;
+    border-color: var(--fv-tomate) !important;
+    color: #fff !important;
+    box-shadow: 0 6px 14px rgba(185, 28, 53, .22) !important;
     cursor: default !important;
 }
 
-@media (max-width: 1024px) {
-    aside {
-        display: none; 
-    }
-    main.main-content {
-        margin-left: 0;
-        width: 100%;
-        padding: 1.5rem !important;
-    }
+@media (max-width: 760px) {
+    main.main-content { padding: 1.1rem !important; }
+    .repartidor-card { padding: 1.15rem; }
 }
