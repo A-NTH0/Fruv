@@ -81,11 +81,7 @@ class PedidoClienteModel
     //  PAGO VISIBLE PARA EL CLIENTE
     // ─────────────────────────────────────────────
 
-    /**
-     * Resume cómo se paga un pedido. Un pedido a crédito siempre se muestra como
-     * "A Crédito"; cuando el saldo llega a $0 solo cambia su estado de pago a
-     * "Totalmente Pagado".
-     */
+
     public static function describirPago(array $p, ?string $estadoActual): array
     {
         $total      = (float) ($p['total'] ?? 0);
@@ -172,18 +168,15 @@ class PedidoClienteModel
         return $items;
     }
 
-    /**
-     * Crea el pedido del cliente con estado inicial "pedido" (Pendiente).
-     * Valida stock con bloqueo de filas para evitar sobreventa.
-     * NO descuenta existencias: el descuento ocurre cuando el administrador acepta el pedido.
-     */
+
     public function crearPedidoDesdeCarrito(
         int $idCliente,
         array $carrito,
         ?string $fechaEntrega,
         ?string $horario,
         string $modalidad = 'contado',
-        float $pagoInicial = 0.0
+        float $pagoInicial = 0.0,
+        float $descuento = 0.0
     ): array {
         $ids = array_map('intval', array_keys($carrito));
         if ($ids === []) {
@@ -224,12 +217,16 @@ class PedidoClienteModel
                     continue;
                 }
 
-                $subtotal = round((float) $f['precio'] * $cantidad, 2);
+                // Descuento del vendedor (cliente preferencial): se aplica a cada producto del pedido.
+                $precioFinal = $descuento > 0
+                    ? \App\Models\ClienteModel::aplicarDescuento((float) $f['precio'], $descuento)
+                    : (float) $f['precio'];
+                $subtotal = round($precioFinal * $cantidad, 2);
                 $total   += $subtotal;
                 $lineas[] = [
                     'id_producto3' => $id,
                     'cantidad'     => $cantidad,
-                    'precio_venta' => (float) $f['precio'],
+                    'precio_venta' => $precioFinal,
                     'unidad_venta' => $f['unidad_venta'],
                     'total'        => $subtotal,
                 ];

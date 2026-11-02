@@ -142,6 +142,8 @@ class ClientesController extends BaseController
             'busqueda'   => $busqueda,
             'idCliente'  => $idCliente,
             'idPedidoOrigen' => $idPedidoOrigen,
+            'esPreferencial' => (new ClienteModel())->esPreferencialPorId($idCliente),
+            'descuentoMax'   => ClienteModel::DESCUENTO_MAXIMO,
         ]);
     }
 
@@ -276,13 +278,23 @@ class ClientesController extends BaseController
             $pagoInicial = (float) $texto;
         }
 
+        // Descuento manual del vendedor: solo cliente preferencial, validado en el servidor.
+        [$descuento, $errorDescuento] = (new ClienteModel())->validarDescuento(
+            $this->request->getPost('descuento'),
+            $idCliente
+        );
+        if ($errorDescuento !== null) {
+            return redirect()->to($url)->with('error', $errorDescuento);
+        }
+
         $resultado = (new PedidoClienteModel())->crearPedidoDesdeCarrito(
             $idCliente,
             $carrito,
             $fecha !== '' ? $fecha : null,
             $horario !== '' ? $horario : null,
             $modalidad,
-            $pagoInicial
+            $pagoInicial,
+            $descuento
         );
 
         if (! $resultado['success']) {

@@ -190,105 +190,153 @@ $kpis = [
 
     <!-- Modal Nuevo Pedido -->
     <div id="modalNuevoPedido" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4" onclick="cerrarModalNuevoPedido(event)">
-        <div class="modal-box max-w-3xl" onclick="event.stopPropagation()">
-            <div class="modal-head">
-                <h2>📦 Nuevo pedido</h2>
-                <button onclick="cerrarModalNuevoPedido()" class="modal-x"><i data-lucide="x" class="w-5 h-5"></i></button>
+        <div class="modal-box np-modal max-w-4xl" role="dialog" aria-modal="true" aria-labelledby="np-titulo" onclick="event.stopPropagation()">
+
+            <header class="np-head">
+                <span class="np-head-icon" aria-hidden="true"><i data-lucide="package-plus" class="w-5 h-5"></i></span>
+                <div class="np-head-copy">
+                    <h2 id="np-titulo">Nuevo pedido</h2>
+                    <p>Captura los datos, agrega los productos y revisa el total antes de guardar.</p>
+                </div>
+                <button type="button" onclick="cerrarModalNuevoPedido()" class="modal-x" aria-label="Cerrar"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </header>
+
+            <div class="np-body">
+
+                <!-- 1 · Datos del pedido -->
+                <section class="np-card" aria-labelledby="np-sec-datos">
+                    <h3 class="np-section-title" id="np-sec-datos"><span class="np-step">1</span> Datos del pedido</h3>
+
+                    <div class="np-grid">
+                        <div class="np-field">
+                            <label class="campo-label" for="np-modalidad">Modalidad de pago</label>
+                            <select id="np-modalidad" class="campo">
+                                <option value="contado">De contado</option>
+                                <option value="credito">A crédito</option>
+                            </select>
+                        </div>
+                        <div class="np-field">
+                            <label class="campo-label" for="np-cliente-texto">Cliente</label>
+                            <input type="hidden" id="np-cliente">
+                            <div class="autocomplete-wrap">
+                                <input type="text" id="np-cliente-texto" class="autocomplete-input" placeholder="Buscar cliente…" autocomplete="off">
+                                <div id="np-cliente-lista" class="autocomplete-list"></div>
+                            </div>
+                        </div>
+                        <div class="np-field">
+                            <label class="campo-label" for="np-repartidor-texto">Repartidor <span class="np-opt">(opcional)</span></label>
+                            <input type="hidden" id="np-repartidor">
+                            <div class="autocomplete-wrap">
+                                <input type="text" id="np-repartidor-texto" class="autocomplete-input" placeholder="Buscar repartidor…" autocomplete="off">
+                                <div id="np-repartidor-lista" class="autocomplete-list"></div>
+                            </div>
+                        </div>
+                        <div class="np-field">
+                            <label class="campo-label" for="np-fecha_pedido">Fecha del pedido</label>
+                            <input type="date" id="np-fecha_pedido" class="campo" value="<?= date('Y-m-d') ?>">
+                        </div>
+                        <div class="np-field">
+                            <label class="campo-label" for="np-fecha_entrega">Fecha de entrega <span class="np-opt">(opcional)</span></label>
+                            <input type="date" id="np-fecha_entrega" class="campo">
+                        </div>
+                        <div class="np-field">
+                            <label class="campo-label" for="np-horario">Horario <span class="np-opt">(opcional)</span></label>
+                            <input type="time" id="np-horario" class="campo">
+                        </div>
+                    </div>
+
+                    <!-- Solo aparece cuando el cliente seleccionado es preferencial -->
+                    <div id="np-descuento-box" class="np-discount hidden" role="group" aria-labelledby="np-desc-title">
+                        <div class="np-discount-info">
+                            <span class="np-discount-icon" aria-hidden="true"><i data-lucide="badge-percent" class="w-5 h-5"></i></span>
+                            <div>
+                                <strong id="np-desc-title">Cliente preferencial</strong>
+                                <p>Escribe el porcentaje de descuento que quieres otorgarle. Se aplicará a todos los productos del pedido.</p>
+                            </div>
+                        </div>
+                        <div class="np-discount-input">
+                            <label class="campo-label" for="np-descuento">Descuento (%)</label>
+                            <div class="np-suffix">
+                                <input type="number" id="np-descuento" inputmode="decimal" min="0" max="<?= \App\Models\ClienteModel::DESCUENTO_MAXIMO ?>" step="0.01" placeholder="0">
+                                <span aria-hidden="true">%</span>
+                            </div>
+                            <small>Máximo <?= \App\Models\ClienteModel::DESCUENTO_MAXIMO ?>%</small>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2 · Productos -->
+                <section class="np-card" aria-labelledby="np-sec-prods">
+                    <h3 class="np-section-title" id="np-sec-prods"><span class="np-step">2</span> Productos</h3>
+
+                    <div class="np-add">
+                        <div class="np-field np-grow">
+                            <label class="campo-label" for="np-sel-prod-texto">Producto</label>
+                            <input type="hidden" id="np-prod-id">
+                            <div class="autocomplete-wrap">
+                                <input type="text" id="np-sel-prod-texto" class="autocomplete-input" placeholder="Buscar producto…" autocomplete="off">
+                                <div id="np-prod-lista" class="autocomplete-list"></div>
+                            </div>
+                        </div>
+                        <div class="np-field np-w-cant">
+                            <label class="campo-label" for="np-cant-prod">Cantidad</label>
+                            <input type="number" id="np-cant-prod" value="1" min="0.01" step="0.01" class="campo">
+                        </div>
+                        <div class="np-field np-w-unidad">
+                            <label class="campo-label" for="np-unidad-prod">Unidad</label>
+                            <select id="np-unidad-prod" class="campo">
+                                <option value="kilos">Kilos</option>
+                                <option value="domos">Domos</option>
+                                <option value="ramos">Ramos</option>
+                            </select>
+                        </div>
+                        <div class="np-field np-w-precio">
+                            <label class="campo-label" for="np-prod-precio">Precio</label>
+                            <input type="number" id="np-prod-precio" min="0" step="0.01" class="campo np-precio" placeholder="$ 0.00">
+                        </div>
+                        <button type="button" onclick="agregarFilaProducto()" class="np-btn-add"><i data-lucide="plus" class="w-4 h-4" aria-hidden="true"></i> Agregar</button>
+                    </div>
+                    <p class="np-hint"><i data-lucide="lightbulb" class="w-3.5 h-3.5" aria-hidden="true"></i> El precio se llena con el de catálogo y puedes cambiarlo para este cliente.</p>
+
+                    <div class="np-table-wrap">
+                        <table class="np-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="text-left">Producto</th>
+                                    <th scope="col" class="text-center">Cant.</th>
+                                    <th scope="col" class="text-center">Unidad</th>
+                                    <th scope="col" class="text-right">Precio</th>
+                                    <th scope="col" class="text-right">Subtotal</th>
+                                    <th scope="col" class="text-center"><span class="sr-only">Acciones</span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="lista-productos-body">
+                                <tr><td colspan="6" class="np-empty">Aún no hay productos agregados</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
-            <div class="p-5">
-                <div class="grid grid-cols-2 gap-3 mb-4">
-                    <div>
-                        <label class="campo-label">Modalidad</label>
-                        <select id="np-modalidad" class="campo">
-                            <option value="contado">💵 Contado</option>
-                            <option value="credito">💰 Crédito</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="campo-label">Cliente</label>
-                        <input type="hidden" id="np-cliente">
-                        <div class="autocomplete-wrap">
-                            <input type="text" id="np-cliente-texto" class="autocomplete-input" placeholder="Buscar cliente..." autocomplete="off">
-                            <div id="np-cliente-lista" class="autocomplete-list"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="campo-label">Repartidor</label>
-                        <input type="hidden" id="np-repartidor">
-                        <div class="autocomplete-wrap">
-                            <input type="text" id="np-repartidor-texto" class="autocomplete-input" placeholder="Buscar repartidor..." autocomplete="off">
-                            <div id="np-repartidor-lista" class="autocomplete-list"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="campo-label">Fecha pedido</label>
-                        <input type="date" id="np-fecha_pedido" class="campo" value="<?= date('Y-m-d') ?>">
-                    </div>
-                    <div>
-                        <label class="campo-label">Fecha entrega</label>
-                        <input type="date" id="np-fecha_entrega" class="campo">
-                    </div>
-                    <div>
-                        <label class="campo-label">Horario</label>
-                        <input type="time" id="np-horario" class="campo">
-                    </div>
-                </div>
 
-                <div class="bg-gray-100 p-3 rounded-lg mb-3">
-                    <label class="font-bold text-sm">Agregar productos</label>
-                    <div class="flex gap-2 mt-2 flex-wrap">
-                        <input type="hidden" id="np-prod-id">
-                        <div class="autocomplete-wrap flex-1 min-w-[180px]">
-                            <input type="text" id="np-sel-prod-texto" class="autocomplete-input" placeholder="Buscar producto..." autocomplete="off">
-                            <div id="np-prod-lista" class="autocomplete-list"></div>
-                        </div>
-                        <input type="number" id="np-cant-prod" value="1" min="0.01" step="0.01" class="w-20 p-2 border rounded-lg" placeholder="Cant">
-                        <input type="number" id="np-prod-precio" min="0" step="0.01" class="w-24 p-2 border rounded-lg border-amber-300 bg-amber-50 focus:ring-2 focus:ring-amber-400 outline-none" placeholder="$ Precio">
-                        <select id="np-unidad-prod" class="w-28 p-2 border rounded-lg">
-                            <option value="kilos">Kilos</option>
-                            <option value="domos">Domos</option>
-                            <option value="ramos">Ramos</option>
-                        </select>
-                        <button type="button" onclick="agregarFilaProducto()" class="bg-rose-500 hover:bg-rose-600 text-white px-4 rounded-lg font-bold">+ Agregar</button>
-                    </div>
-                    <p class="text-[11px] text-amber-600 mt-1.5">💡 El precio se llena automático, pero puedes cambiarlo por cliente.</p>
-                </div>
-
-                <div class="max-h-40 overflow-y-auto mb-3">
-                    <table class="w-full text-sm">
-                        <thead class="bg-gray-100">
-                            <tr>
-                                <th class="p-2 text-left">Producto</th>
-                                <th class="p-2 text-center">Cant</th>
-                                <th class="p-2 text-center">Unidad</th>
-                                <th class="p-2 text-right">Precio</th>
-                                <th class="p-2 text-right">Subtotal</th>
-                                <th class="p-2 text-center">Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody id="lista-productos-body">
-                            <tr><td colspan="6" class="text-center py-4 text-gray-400">No hay productos agregados</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="bg-rose-50 p-3 rounded-lg flex justify-between items-center mb-4">
-                    <span class="font-bold text-rose-800">TOTAL DEL PEDIDO:</span>
-                    <span id="total-modal" class="text-xl font-black text-rose-600">$0.00</span>
-                </div>
-
+            <footer class="np-footer">
                 <!-- Pago inicial: solo si la modalidad es crédito (desde $0). De contado se toma el total como pagado -->
-                <div id="np-pago-box" class="hidden bg-purple-50 p-3 rounded-lg mb-4">
-                    <label class="campo-label" for="np-pago-inicial">Pago inicial / enganche <span class="text-gray-400 font-normal">(puede ser $0)</span></label>
+                <div id="np-pago-box" class="np-pay hidden">
+                    <label class="campo-label" for="np-pago-inicial">Pago inicial / enganche <span class="np-opt">(puede ser $0)</span></label>
                     <input type="number" id="np-pago-inicial" min="0" step="0.01" value="0" class="campo" placeholder="0.00">
-                    <p class="text-xs text-purple-700 mt-1.5">Saldo pendiente: <strong id="np-saldo">$0.00</strong></p>
+                    <p>Saldo pendiente: <strong id="np-saldo">$0.00</strong></p>
                 </div>
 
-                <div class="flex gap-3">
-                    <button onclick="guardarNuevoPedido()" class="btn-modal bg-rose-500 hover:bg-rose-600 text-white">💾 Guardar pedido</button>
-                    <button onclick="cerrarModalNuevoPedido()" class="btn-modal bg-gray-200 hover:bg-gray-300 text-gray-700">Cancelar</button>
+                <dl class="np-totals" aria-live="polite">
+                    <div class="np-row"><dt>Subtotal</dt><dd id="np-subtotal">$0.00</dd></div>
+                    <div class="np-row np-row-desc hidden" id="np-desc-row"><dt>Descuento (<span id="np-desc-pct">0</span>%)</dt><dd id="np-desc-monto">−$0.00</dd></div>
+                    <div class="np-row np-row-total"><dt>Total del pedido</dt><dd id="total-modal">$0.00</dd></div>
+                </dl>
+
+                <div class="np-actions">
+                    <button type="button" onclick="cerrarModalNuevoPedido()" class="np-btn-cancel">Cancelar</button>
+                    <button type="button" onclick="guardarNuevoPedido()" class="np-btn-save"><i data-lucide="save" class="w-4 h-4" aria-hidden="true"></i> Guardar pedido</button>
                 </div>
-            </div>
+            </footer>
         </div>
     </div>
 
@@ -303,7 +351,7 @@ $kpis = [
             'preferencial' => \App\Models\ClienteModel::esPreferencial((int) $c['compras'], $c['preferencial_manual'] ?? 0),
         ], $clientes)) ?>;
 
-        const DESCUENTO_PREFERENCIAL = <?= \App\Models\ClienteModel::DESCUENTO_PREFERENCIAL ?>;
+        const DESCUENTO_MAXIMO = <?= \App\Models\ClienteModel::DESCUENTO_MAXIMO ?>;
 
         const REPARTIDORES_DATA = <?= json_encode(array_map(fn($r) => [
             'id'    => $r['id_repartidor'],

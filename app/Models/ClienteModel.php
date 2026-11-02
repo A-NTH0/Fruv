@@ -25,8 +25,8 @@ class ClienteModel extends Model
     ];
 
    
-    public const UMBRAL_PREFERENCIAL    = 5;   // pedidos de contado concluidos para ser preferencial
-    public const DESCUENTO_PREFERENCIAL = 10;  // % de descuento sugerido en el precio
+    public const UMBRAL_PREFERENCIAL    = 5;   
+    public const DESCUENTO_MAXIMO       = 90; 
 
     /**
      * Subconsulta: pedidos de contado concluidos de un cliente (último estado entregado
@@ -48,6 +48,51 @@ class ClienteModel extends Model
     public static function esPreferencial(int $compras, $manual = 0): bool
     {
         return (int) $manual === 1 || $compras >= self::UMBRAL_PREFERENCIAL;
+    }
+
+    /** ¿El cliente es preferencial hoy? (marca manual o 5+ pedidos de contado pagados). */
+    public function esPreferencialPorId(int $idCliente): bool
+    {
+        $fila = $this->select('cliente.preferencial_manual, ' . self::sqlCompras(), false)
+                     ->where('cliente.baja', 0)
+                     ->find($idCliente);
+
+        return $fila !== null
+            && self::esPreferencial((int) ($fila['compras'] ?? 0), $fila['preferencial_manual'] ?? 0);
+    }
+
+    /**
+     * Normaliza el % de descuento capturado a mano. Devuelve [porcentaje, error].
+     * Vacío o 0 = sin descuento. Solo se admite para clientes preferenciales.
+     *
+     * @param mixed $crudo valor recibido por POST
+     * @return array{0: float, 1: ?string}
+     */
+    public function validarDescuento($crudo, int $idCliente): array
+    {
+        $texto = trim((string) $crudo);
+
+        if ($texto === '' || ! is_numeric($texto) || (float) $texto == 0.0) {
+            return [0.0, $texto !== '' && ! is_numeric($texto) ? 'El descuento debe ser un número.' : null];
+        }
+
+        $descuento = round((float) $texto, 2);
+
+        if ($descuento < 0 || $descuento > self::DESCUENTO_MAXIMO) {
+            return [0.0, 'El descuento debe estar entre 0% y ' . self::DESCUENTO_MAXIMO . '%.'];
+        }
+
+        if (! $this->esPreferencialPorId($idCliente)) {
+            return [0.0, 'Solo los clientes preferenciales pueden recibir descuento.'];
+        }
+
+        return [$descuento, null];
+    }
+
+    /** Aplica el % de descuento a un precio unitario (redondeo a centavos). */
+    public static function aplicarDescuento(float $precio, float $descuento): float
+    {
+        return round($precio * (100 - $descuento) / 100, 2);
     }
 
     /** Ajuste manual del administrador. */

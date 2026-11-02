@@ -13,22 +13,20 @@ let paginaActualPorEstado = {
 };
 
 /**
- * Precio sugerido según el cliente (RF-12). Si el cliente es preferencial se
- * aplica el descuento, pero el campo de precio sigue siendo editable.
+ * Precio sugerido al elegir un producto. Ya NO se aplica ningún descuento automático:
+ * se muestra el precio de catálogo (editable). El descuento a clientes preferenciales
+ * lo captura el administrador a mano en el recuadro "Descuento (%)".
  */
-function precioSugerido(precioBase, clienteId) {
-    const c = CLIENTES_DATA.find(x => String(x.id) === String(clienteId));
-    if (c && c.preferencial) {
-        return Math.round(precioBase * (100 - DESCUENTO_PREFERENCIAL)) / 100;
-    }
+function precioSugerido(precioBase /*, clienteId */) {
     return precioBase;
 }
 
+/** Aviso (toast) al elegir un cliente preferencial en el modal de edición. */
 function avisoClientePreferencial(item) {
     if (!item || !item.preferencial) return;
     Swal.fire({
         toast: true, position: 'top-end', icon: 'info', timer: 4000, showConfirmButton: false,
-        title: `Cliente preferencial: los precios sugeridos llevan ${DESCUENTO_PREFERENCIAL}% de descuento (puedes editarlos).`
+        title: 'Cliente preferencial: puedes aplicarle un descuento manual.'
     });
 }
 
@@ -620,7 +618,7 @@ function editarPedido(idPedido) {
                     <div class="flex items-center justify-between gap-2 flex-wrap mb-2">
                         <h3 class="font-bold text-gray-700 text-sm">📦 Productos del Pedido</h3>
                         <button type="button" onclick="aplicarPrecioPreferencialEdicion()" class="text-xs font-bold bg-amber-100 text-amber-900 px-3 py-1.5 rounded-lg hover:bg-amber-200">
-                            ⭐ Aplicar precio preferencial (-${DESCUENTO_PREFERENCIAL}%)
+                            ⭐ Aplicar descuento preferencial…
                         </button>
                     </div>
                     <p class="text-[11px] text-gray-600 mb-2">💡 La cantidad y el precio unitario se pueden editar en cada línea.</p>
@@ -674,8 +672,11 @@ function editarPedido(idPedido) {
     }).catch(err => { Swal.close(); console.error(err); Swal.fire('Error', 'No se pudo cargar el pedido para editar', 'error'); });
 }
 
-/** Aplica a cada línea el precio de catálogo con el descuento preferencial; se puede volver a editar a mano. */
-function aplicarPrecioPreferencialEdicion() {
+/**
+ * Pide al administrador el % de descuento y lo aplica a cada línea usando el precio de catálogo.
+ * Las líneas se pueden seguir editando a mano después.
+ */
+async function aplicarPrecioPreferencialEdicion() {
     const clienteId = document.getElementById('edit-cliente-id').value;
     const cliente   = CLIENTES_DATA.find(c => String(c.id) === String(clienteId));
 
@@ -684,11 +685,29 @@ function aplicarPrecioPreferencialEdicion() {
         return;
     }
 
+    const { value, isConfirmed } = await Swal.fire({
+        title: 'Descuento preferencial',
+        text: 'Porcentaje que se aplicará al precio de catálogo de cada producto del pedido.',
+        input: 'number',
+        inputAttributes: { min: 0, max: DESCUENTO_MAXIMO, step: 0.01 },
+        inputPlaceholder: 'Ej. 8',
+        showCancelButton: true,
+        confirmButtonText: 'Aplicar',
+        cancelButtonText: 'Cancelar',
+        inputValidator: (v) => {
+            const n = parseFloat(v);
+            if (v === '' || isNaN(n) || n < 0 || n > DESCUENTO_MAXIMO) return `Ingresa un porcentaje entre 0 y ${DESCUENTO_MAXIMO}.`;
+            return null;
+        }
+    });
+    if (!isConfirmed) return;
+
+    const pct = parseFloat(value);
     let aplicados = 0, omitidos = 0;
     document.querySelectorAll('#edit-productos-body tr[data-producto-id]').forEach(row => {
         const prod = PRODUCTOS_DATA.find(x => String(x.id) === String(row.dataset.productoId));
         if (!prod || !(prod.precio > 0)) { omitidos++; return; }
-        row.querySelector('.linea-precio').value = precioSugerido(prod.precio, cliente.id).toFixed(2);
+        row.querySelector('.linea-precio').value = (Math.round(prod.precio * (100 - pct)) / 100).toFixed(2);
         aplicados++;
     });
     recalcularTotalEdicion();
@@ -696,7 +715,7 @@ function aplicarPrecioPreferencialEdicion() {
     Swal.fire({
         toast: true, position: 'top-end', icon: aplicados ? 'success' : 'warning', timer: 4500, showConfirmButton: false,
         title: aplicados
-            ? `Precio preferencial aplicado a ${aplicados} línea(s)` + (omitidos ? `; ${omitidos} sin precio de catálogo` : '')
+            ? `Descuento de ${pct}% aplicado a ${aplicados} línea(s)` + (omitidos ? `; ${omitidos} sin precio de catálogo` : '')
             : 'Ninguna línea tiene precio de catálogo disponible'
     });
 }
@@ -865,27 +884,64 @@ function cerrarModalAbono(event) {
     }
 }
 
+/* ═══════════════ NUEVO PEDIDO (administrador) ═══════════════ */
+
+const redondear2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+const dinero     = (n) => '$' + n.toFixed(2);
+
+/** ¿El cliente seleccionado en "Nuevo pedido" es preferencial? */
+function clienteNuevoEsPreferencial() {
+    const id = document.getElementById('np-cliente').value;
+    const c  = CLIENTES_DATA.find(x => String(x.id) === String(id));
+    return !!(c && c.preferencial);
+}
+
+/** % de descuento vigente (0 si el cliente no es preferencial o el campo está vacío). Limitado a 0–máximo. */
+function descuentoNuevo() {
+    if (!clienteNuevoEsPreferencial()) return 0;
+    const n = parseFloat(document.getElementById('np-descuento').value);
+    if (isNaN(n) || n <= 0) return 0;
+    return Math.min(n, DESCUENTO_MAXIMO);
+}
+
+/** Precio unitario ya con descuento (mismo redondeo que el servidor). */
+const precioFinalNuevo = (p) => redondear2(p.precio * (100 - descuentoNuevo()) / 100);
+const subtotalNuevo    = (p) => redondear2(p.cant * precioFinalNuevo(p));
+const subtotalBruto    = ()  => productosSeleccionados.reduce((s, p) => s + redondear2(p.cant * p.precio), 0);
+const totalNuevo       = ()  => productosSeleccionados.reduce((s, p) => s + subtotalNuevo(p), 0);
+
+/** Muestra u oculta el recuadro de descuento según el cliente elegido. */
+function sincronizarDescuentoNuevo() {
+    const box = document.getElementById('np-descuento-box');
+    const esPref = clienteNuevoEsPreferencial();
+    box.classList.toggle('hidden', !esPref);
+    if (!esPref) document.getElementById('np-descuento').value = '';
+    renderizarProductos();
+}
+
 function abrirModalNuevoPedido() {
     productosSeleccionados = [];
-    renderizarProductos();
     document.getElementById('np-fecha_pedido').value       = new Date().toISOString().slice(0, 10);
     document.getElementById('np-modalidad').value          = 'contado';
     document.getElementById('np-pago-inicial').value       = '0';
-    actualizarPagoNuevo();
     document.getElementById('np-cliente').value            = '';
     document.getElementById('np-cliente-texto').value      = '';
     document.getElementById('np-repartidor').value         = '';
     document.getElementById('np-repartidor-texto').value   = '';
     document.getElementById('np-fecha_entrega').value      = '';
     document.getElementById('np-horario').value            = '';
+    document.getElementById('np-descuento').value          = '';
+    document.getElementById('np-cant-prod').value          = 1;
     const inputProdTexto                                   = document.getElementById('np-sel-prod-texto');
     inputProdTexto.value                                   = '';
     inputProdTexto.dataset.stock                           = '';
     inputProdTexto.dataset.nombreLimpio                    = '';
     document.getElementById('np-prod-id').value            = '';
     document.getElementById('np-prod-precio').value        = '';
+    sincronizarDescuentoNuevo();   // oculta el recuadro, redibuja la tabla y recalcula totales
     document.getElementById('modalNuevoPedido').classList.remove('hidden');
     document.getElementById('modalNuevoPedido').classList.add('flex');
+    lucide.createIcons();
 }
 
 function cerrarModalNuevoPedido(event) {
@@ -922,9 +978,8 @@ function agregarFilaProducto() {
 
     if (existente) {
         existente.cant += cant;
-        existente.sub   = existente.cant * existente.precio;
     } else {
-        productosSeleccionados.push({ id, nombre, cant, precio, unidad, sub: precio * cant });
+        productosSeleccionados.push({ id, nombre, cant, precio, unidad });
     }
 
     document.getElementById('np-cant-prod').value   = 1;
@@ -949,45 +1004,54 @@ function cambiarPrecioNuevo(index, valor) {
         renderizarProductos();
         return;
     }
-    p.precio = Math.round(precio * 100) / 100;
-    p.sub    = p.cant * p.precio;
+    p.precio = redondear2(precio);
     renderizarProductos();
 }
 
+/** Dibuja la tabla (con el descuento aplicado a CADA producto) y recalcula subtotal, descuento y total. */
 function renderizarProductos() {
     const body = document.getElementById('lista-productos-body');
     if (!body) return;
+
+    const pct = descuentoNuevo();
+
     if (productosSeleccionados.length === 0) {
-        body.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-400">No hay productos agregados</td></tr>';
-        const tm = document.getElementById('total-modal');
-        if (tm) tm.textContent = '$0.00';
-        actualizarPagoNuevo();
-        return;
+        body.innerHTML = '<tr><td colspan="6" class="np-empty">Aún no hay productos agregados</td></tr>';
+    } else {
+        body.innerHTML = productosSeleccionados.map((p, i) => {
+            const bruto = redondear2(p.cant * p.precio);
+            const final = subtotalNuevo(p);
+            const celdaSub = pct > 0
+                ? `<span class="np-sub-old">${dinero(bruto)}</span><strong class="np-sub-new">${dinero(final)}</strong>
+                   <small class="np-sub-note">${dinero(precioFinalNuevo(p))} c/u con −${pct}%</small>`
+                : `<strong>${dinero(final)}</strong>`;
+            return `<tr>
+                <td class="text-left np-prod-name">${escHtml(p.nombre)}</td>
+                <td class="text-center">${p.cant}</td>
+                <td class="text-center">${escHtml(p.unidad)}</td>
+                <td class="text-right">
+                    <input type="number" value="${p.precio.toFixed(2)}" min="0.01" step="0.01" class="np-precio-linea"
+                        aria-label="Precio unitario de ${escHtml(p.nombre)}"
+                        onchange="cambiarPrecioNuevo(${i}, this.value)">
+                </td>
+                <td class="text-right np-sub">${celdaSub}</td>
+                <td class="text-center">
+                    <button type="button" onclick="eliminarProducto(${i})" aria-label="Quitar ${escHtml(p.nombre)}" class="np-del">
+                        <i data-lucide="trash-2" class="w-4 h-4" aria-hidden="true"></i>
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
     }
-    let html = '', total = 0;
-    productosSeleccionados.forEach((p, i) => {
-        total += p.sub;
-        html  += `<tr class="border-b">
-            <td class="py-2 text-left font-medium">${escHtml(p.nombre)}</td>
-            <td class="py-2 text-center">${p.cant}</td>
-            <td class="py-2 text-center">${escHtml(p.unidad)}</td>
-            <td class="py-2 text-right">
-                <input type="number" value="${p.precio.toFixed(2)}" min="0.01" step="0.01"
-                    class="w-24 p-1 border rounded text-right border-amber-300 bg-amber-50"
-                    aria-label="Precio unitario de ${escHtml(p.nombre)}"
-                    onchange="cambiarPrecioNuevo(${i}, this.value)">
-            </td>
-            <td class="py-2 text-right font-bold">$${p.sub.toFixed(2)}</td>
-            <td class="py-2 text-center">
-                <button type="button" onclick="eliminarProducto(${i})" aria-label="Quitar ${escHtml(p.nombre)}" class="text-rose-500 hover:text-rose-700">
-                    <i data-lucide="trash-2" class="w-4 h-4" aria-hidden="true"></i>
-                </button>
-            </td>
-        </tr>`;
-    });
-    body.innerHTML = html;
-    const tm = document.getElementById('total-modal');
-    if (tm) tm.textContent = `$${total.toFixed(2)}`;
+
+    const bruto = subtotalBruto();
+    const total = totalNuevo();
+    document.getElementById('np-subtotal').textContent   = dinero(bruto);
+    document.getElementById('np-desc-pct').textContent   = pct;
+    document.getElementById('np-desc-monto').textContent = '−' + dinero(Math.max(0, bruto - total));
+    document.getElementById('np-desc-row').classList.toggle('hidden', !(pct > 0 && productosSeleccionados.length));
+    document.getElementById('total-modal').textContent   = dinero(total);
+
     actualizarPagoNuevo();
     lucide.createIcons();
 }
@@ -1000,13 +1064,13 @@ function actualizarPagoNuevo() {
     const credito = document.getElementById('np-modalidad').value === 'credito';
     box.classList.toggle('hidden', !credito);
 
-    const total = productosSeleccionados.reduce((s, p) => s + p.sub, 0);
+    const total = totalNuevo();
     const input = document.getElementById('np-pago-inicial');
     input.max = total;
     if (!credito) input.value = '0';
 
     const inicial = parseFloat(input.value) || 0;
-    document.getElementById('np-saldo').textContent = '$' + Math.max(0, total - inicial).toFixed(2);
+    document.getElementById('np-saldo').textContent = dinero(Math.max(0, total - inicial));
 }
 
 async function guardarNuevoPedido() {
@@ -1026,7 +1090,17 @@ async function guardarNuevoPedido() {
     }
     if (productosSeleccionados.length === 0) { Swal.fire('Error', 'Agregue al menos un producto', 'error'); return; }
 
-    const total   = productosSeleccionados.reduce((s, p) => s + p.sub, 0);
+    // Descuento manual: validación visible antes de enviar
+    const textoDesc = document.getElementById('np-descuento').value.trim();
+    if (clienteNuevoEsPreferencial() && textoDesc !== '') {
+        const n = parseFloat(textoDesc);
+        if (isNaN(n) || n < 0 || n > DESCUENTO_MAXIMO) {
+            Swal.fire('Descuento no válido', `El descuento debe estar entre 0% y ${DESCUENTO_MAXIMO}%.`, 'error'); return;
+        }
+    }
+    const descuento = descuentoNuevo();
+
+    const total   = totalNuevo();
     const credito = document.getElementById('np-modalidad').value === 'credito';
     const inicial = credito ? (parseFloat(document.getElementById('np-pago-inicial').value) || 0) : total;
 
@@ -1043,10 +1117,12 @@ async function guardarNuevoPedido() {
                 id_repartidor:  repId,
                 modalidad_pago: document.getElementById('np-modalidad').value,
                 pago_inicial:   credito ? inicial : 0,
+                descuento,                                   // % manual; el servidor lo valida y lo aplica a cada producto
                 total,
                 fecha_pedido:   document.getElementById('np-fecha_pedido').value,
                 fecha_entrega:  document.getElementById('np-fecha_entrega').value,
                 horario:        document.getElementById('np-horario').value,
+                // precio = precio base editable (SIN descuento): el descuento lo aplica el servidor
                 productos:      JSON.stringify(productosSeleccionados.map(p => ({ id: p.id, cantidad: p.cant, precio: p.precio, unidad: p.unidad }))),
             }),
         });
@@ -1071,11 +1147,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('np-modalidad').addEventListener('change', actualizarPagoNuevo);
     document.getElementById('np-pago-inicial').addEventListener('input', actualizarPagoNuevo);
+    document.getElementById('np-descuento').addEventListener('input', renderizarProductos);
+    document.getElementById('np-descuento').addEventListener('blur', (e) => {
+        // Si se pasa del máximo, se corrige al máximo permitido
+        const n = parseFloat(e.target.value);
+        if (!isNaN(n) && n > DESCUENTO_MAXIMO) { e.target.value = DESCUENTO_MAXIMO; renderizarProductos(); }
+        if (!isNaN(n) && n < 0) { e.target.value = ''; renderizarProductos(); }
+    });
 
-    crearAutocomplete('np-cliente-texto',    'np-cliente',    'np-cliente-lista',    CLIENTES_DATA,     avisoClientePreferencial, 'Se debe registrar primero al cliente');
+    crearAutocomplete('np-cliente-texto',    'np-cliente',    'np-cliente-lista',    CLIENTES_DATA,     () => sincronizarDescuentoNuevo(), 'Se debe registrar primero al cliente');
+    // Si el usuario borra o cambia el texto del cliente, el id se limpia: se oculta el recuadro de descuento.
+    document.getElementById('np-cliente-texto').addEventListener('input', sincronizarDescuentoNuevo);
+
     crearAutocomplete('np-repartidor-texto', 'np-repartidor', 'np-repartidor-lista', REPARTIDORES_DATA, null, 'Se debe registrar primero al repartidor');
     crearAutocomplete('np-sel-prod-texto',   'np-prod-id',    'np-prod-lista',       PRODUCTOS_DATA,    (item) => {
-        document.getElementById('np-prod-precio').value = precioSugerido(item.precio, document.getElementById('np-cliente').value);
+        document.getElementById('np-prod-precio').value = precioSugerido(item.precio);
         const inputProdTexto = document.getElementById('np-sel-prod-texto');
         inputProdTexto.dataset.stock        = item.stock;
         inputProdTexto.dataset.nombreLimpio = item.nombre_limpio;

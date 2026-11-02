@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Models\ClienteModel;
 use App\Models\PedidoModel;
 
 class PedidosController extends BaseController
@@ -94,10 +95,11 @@ class PedidosController extends BaseController
      * RF-12: el precio de cada línea es editable (p. ej. precio preferencial), así que el servidor
      * valida las líneas y recalcula el total; ya no confía en el total que manda el navegador.
      *
-     * @param mixed $crudo JSON ya decodificado de "productos"
+     * @param mixed $crudo     JSON ya decodificado de "productos"
+     * @param float $descuento % de descuento (cliente preferencial) que se aplica a CADA línea
      * @return array{0: array<int, array>, 1: float, 2: ?string} [líneas, total, mensaje de error]
      */
-    private function normalizarProductos($crudo): array
+    private function normalizarProductos($crudo, float $descuento = 0.0): array
     {
         if (! is_array($crudo) || $crudo === []) {
             return [[], 0.0, 'Agrega al menos un producto.'];
@@ -137,6 +139,15 @@ class PedidosController extends BaseController
                 $unidad = $producto['unidad_venta'];
             }
 
+            // Descuento manual: se aplica al precio unitario de cada línea y luego se calcula el subtotal.
+            if ($descuento > 0) {
+                $precio = ClienteModel::aplicarDescuento($precio, $descuento);
+
+                if ($precio <= 0) {
+                    return [[], 0.0, 'El descuento deja un producto con precio $0. Reduce el porcentaje.'];
+                }
+            }
+
             $total   += round($cantidad * $precio, 2);
             $lineas[] = ['id' => $id, 'cantidad' => $cantidad, 'precio' => $precio, 'unidad' => $unidad];
         }
@@ -149,9 +160,20 @@ class PedidosController extends BaseController
         $pedidoModel = new PedidoModel();
         $modalidad   = $this->request->getPost('modalidad_pago') === 'credito' ? 'credito' : 'contado';
 
-        // RF-12: precios editables → el servidor valida las líneas y calcula el total.
+        // Descuento manual (solo cliente preferencial): se valida en el servidor, no se confía en el navegador.
+        [$descuento, $errorDescuento] = (new ClienteModel())->validarDescuento(
+            $this->request->getPost('descuento'),
+            (int) $this->request->getPost('id_cliente')
+        );
+
+        if ($errorDescuento !== null) {
+            return $this->response->setJSON(['success' => false, 'message' => $errorDescuento]);
+        }
+
+        // RF-12: precios editables → el servidor valida las líneas, aplica el descuento y calcula el total.
         [$productos, $total, $errorLineas] = $this->normalizarProductos(
-            json_decode((string) $this->request->getPost('productos'), true)
+            json_decode((string) $this->request->getPost('productos'), true),
+            $descuento
         );
 
         if ($errorLineas !== null) {
@@ -414,7 +436,7 @@ class PedidosController extends BaseController
 
     public function getStatsActualizados()
     {
-        session_write_close(); // libera el bloqueo de sesión del sondeo
+        session_write_close(); 
         $pedidoModel = new PedidoModel();
         return $this->response->setJSON([
             'success' => true,

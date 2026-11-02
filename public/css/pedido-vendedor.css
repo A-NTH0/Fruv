@@ -762,3 +762,79 @@ padding: 1.1rem 1rem 1.5rem;
     .vendor-checkout-submit button { width: 100%; }
     .vendor-reload-modal { max-height: 92vh; }
 }
+
+/* ==========================================================================
+   Crear pedido (vendedor) · rediseño del panel de pedido
+   ========================================================================== */
+.vo-panel { margin-bottom: 1.75rem; padding: clamp(1.1rem, 2.5vw, 1.75rem); border: 1px solid var(--fv-line); border-top: 3px solid var(--fv-tomate); border-radius: 1.35rem; background: #fff; box-shadow: var(--fv-shadow-1); }
+.vo-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; }
+.vo-head h2 { margin: 0; font-size: 1.35rem; font-weight: 700; color: var(--fv-ink); }
+.vo-badges { display: flex; flex-wrap: wrap; gap: .5rem; }
+.vo-badge { display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .8rem; border-radius: 999px; background: var(--fv-canvas); border: 1px solid var(--fv-line); color: var(--fv-ink-2); font-size: .78rem; font-weight: 600; }
+.vo-badge svg { width: .95rem; height: .95rem; }
+.vo-badge-pref { background: var(--fv-mango-bg); border-color: var(--fv-mango-line); color: var(--fv-mango); }
+
+.vo-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(19rem, 1fr); gap: 1.25rem; align-items: start; }
+.vo-subtitle { margin: 0 0 .8rem; font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--fv-granada); }
+
+.vo-list { margin: 0; padding: 0; list-style: none; display: grid; gap: .6rem; }
+.vo-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; gap: .9rem; padding: .8rem 1rem; border: 1px solid var(--fv-line); border-radius: .95rem; background: var(--fv-canvas); }
+.vo-item-info strong { display: block; font-size: .95rem; color: var(--fv-ink); }
+.vo-item-info small { color: var(--fv-muted); font-size: .76rem; }
+.vo-item-edit { display: flex; align-items: center; gap: .4rem; margin: 0; }
+.vo-item-edit input { width: 4.8rem; height: 2.2rem; padding: 0 .5rem; border: 1px solid var(--fv-line-2); border-radius: .6rem; background: #fff; font-size: .85rem; text-align: right; }
+.vo-btn-soft { height: 2.2rem; padding: 0 .75rem; border: 1px solid var(--fv-line-2); border-radius: .6rem; background: #fff; color: var(--fv-ink-2); font-size: .78rem; font-weight: 600; cursor: pointer; }
+.vo-btn-soft:hover { background: var(--fv-berry-50); color: var(--fv-tomate); }
+.vo-item-sub { min-width: 5.5rem; text-align: right; }
+.vo-item-sub strong { display: block; font-size: .98rem; color: var(--fv-ink); }
+.vo-sub-old { display: block; font-size: .72rem; color: var(--fv-muted); text-decoration: line-through; }
+.vo-item-sub small { display: block; font-size: .68rem; color: var(--fv-leaf); }
+.vo-item-sub [hidden] { display: none; }
+.vo-item-del { margin: 0; }
+.vo-btn-del { display: grid; place-items: center; width: 2.2rem; height: 2.2rem; border: 0; border-radius: .6rem; background: transparent; color: var(--fv-tomate); cursor: pointer; }
+.vo-btn-del:hover { background: var(--fv-berry-100); }
+.vo-btn-del svg { width: 1.05rem; height: 1.05rem; }
+
+.vo-summary { position: sticky; top: 1rem; display: grid; gap: 1rem; padding: 1.15rem; border: 1px solid var(--fv-line); border-radius: 1.1rem; background: #fff; box-shadow: var(--fv-shadow-1); }
+.vo-summary .vo-subtitle { margin: 0; }
+.vo-fields { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+.vo-fields label { display: grid; gap: .3rem; min-width: 0; }
+.vo-fields label[hidden] { display: none; }
+.vo-full { grid-column: 1 / -1; }
+.vo-fields span { font-size: .72rem; font-weight: 700; color: var(--fv-ink-2); }
+.vo-fields small { font-weight: 500; color: var(--fv-muted); }
+.vo-fields input, .vo-fields select { width: 100%; height: 2.6rem; padding: 0 .7rem; border: 1px solid var(--fv-line-2); border-radius: .7rem; background: #fff; font-size: .88rem; box-sizing: border-box; }
+.vo-fields input:focus, .vo-fields select:focus, .vo-discount-input input:focus { outline: none; border-color: var(--fv-tomate); box-shadow: 0 0 0 3px var(--fv-berry-100); }
+
+.vo-discount { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: .5rem .9rem; padding: .85rem .95rem; border: 1px solid var(--fv-mango-line); border-radius: .9rem; background: var(--fv-mango-bg); }
+.vo-discount-copy { display: flex; align-items: flex-start; gap: .6rem; }
+.vo-discount-copy svg { flex: none; width: 1.3rem; height: 1.3rem; margin-top: .1rem; color: var(--fv-mango); }
+.vo-discount-copy strong { display: block; font-size: .84rem; color: var(--fv-mango); }
+.vo-discount-copy p { margin: .15rem 0 0; font-size: .74rem; color: var(--fv-ink-2); }
+.vo-discount-input { position: relative; width: 6.5rem; }
+.vo-discount-input input { width: 100%; height: 2.6rem; padding: 0 1.8rem 0 .6rem; border: 1px solid var(--fv-mango-line); border-radius: .7rem; background: #fff; font-size: 1rem; font-weight: 700; text-align: right; box-sizing: border-box; }
+.vo-discount-input b { position: absolute; right: .7rem; top: 50%; transform: translateY(-50%); color: var(--fv-mango); pointer-events: none; }
+.vo-discount > small { grid-column: 1 / -1; font-size: .7rem; color: var(--fv-muted); }
+
+.vo-totals { margin: 0; display: grid; gap: .35rem; }
+.vo-totals > div { display: flex; justify-content: space-between; align-items: baseline; font-size: .86rem; color: var(--fv-ink-2); }
+.vo-totals > div[hidden] { display: none; }
+.vo-totals dt, .vo-totals dd { margin: 0; }
+.vo-desc-row { color: var(--fv-leaf) !important; font-weight: 600; }
+.vo-saldo-row { color: var(--fv-plum) !important; font-weight: 600; }
+.vo-total { margin-top: .25rem; padding-top: .65rem; border-top: 1px solid var(--fv-line); }
+.vo-total dt { font-weight: 700; color: var(--fv-ink); }
+.vo-total dd { font-size: 1.7rem; font-weight: 800; color: var(--fv-tomate); }
+.vo-submit { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; height: 2.9rem; border: 0; border-radius: .85rem; background: var(--fv-tomate); color: #fff; font-size: .92rem; font-weight: 700; cursor: pointer; transition: background .15s; }
+.vo-submit:hover { background: var(--fv-cereza); }
+.vo-submit svg { width: 1.05rem; height: 1.05rem; }
+
+@media (max-width: 980px) {
+    .vo-layout { grid-template-columns: 1fr; }
+    .vo-summary { position: static; }
+}
+@media (max-width: 560px) {
+    .vo-item { grid-template-columns: 1fr auto; }
+    .vo-item-edit { grid-column: 1 / -1; order: 3; }
+    .vo-fields { grid-template-columns: 1fr; }
+}
