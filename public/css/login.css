@@ -127,10 +127,24 @@ body::before {
     outline: none;
 }
 .input-group input::placeholder { color: #dcc3c9; opacity: 1; }
-/* El autocompletado del navegador no debe pintar el campo de blanco */
-.input-group input:-webkit-autofill {
+/* Autocompletado del navegador (Chrome/Edge/Safari): por defecto pinta el campo de azul claro
+   y deja el texto blanco, y deja de verse. Se cubre TODO el alto del campo con una sombra interior
+   enorme del mismo tono guinda, se fuerza el texto blanco y se aplaza el cambio de fondo del navegador. */
+.input-group input:-webkit-autofill,
+.input-group input:-webkit-autofill:hover,
+.input-group input:-webkit-autofill:focus,
+.input-group input:-webkit-autofill:active {
+    -webkit-text-fill-color: #fff !important;
+    -webkit-box-shadow: 0 0 0 1000px #5a1a2d inset !important;
+    box-shadow: 0 0 0 1000px #5a1a2d inset !important;
+    caret-color: #fff;
+    border-radius: 0;
+    transition: background-color 600000s 0s, color 600000s 0s;
+}
+/* Selector estándar, en regla aparte: un navegador que no lo conozca no debe invalidar la regla anterior */
+.input-group input:autofill {
     -webkit-text-fill-color: #fff;
-    -webkit-box-shadow: 0 0 0 40px #5a1a2d inset;
+    box-shadow: 0 0 0 1000px #5a1a2d inset;
     caret-color: #fff;
 }
 
