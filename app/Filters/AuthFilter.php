@@ -9,7 +9,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 class AuthFilter implements FilterInterface
 {
     /** Primer segmento de las rutas exclusivas del cliente. */
-    private const RUTAS_CLIENTE = ['carrito', 'mis-pedidos', 'perfil'];
+    private const RUTAS_CLIENTE = ['carrito', 'mis-pedidos', 'perfil', 'chatbot'];
     private const RUTAS_ADMIN = ['vendedores'];
 
     public function before(RequestInterface $request, $arguments = null)

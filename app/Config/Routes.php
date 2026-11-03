@@ -89,4 +89,9 @@ $routes->get('mis-pedidos', 'ClientePedidosController::index');
 $routes->get('mis-pedidos/estados', 'ClientePedidosController::estados');
 $routes->post('mis-pedidos/cancelar', 'ClientePedidosController::cancelar');
 $routes->post('mis-pedidos/abonar', 'ClientePedidosController::abonar');
+
+// Asistente virtual (chatbot): solo cliente.
+$routes->get('chatbot/inicio', 'ChatbotController::inicio');
+$routes->post('chatbot/mensaje', 'ChatbotController::mensaje');
+$routes->post('chatbot/seguimiento', 'ChatbotController::seguimiento');
 $routes->get('perfil', 'ClientePedidosController::perfil');

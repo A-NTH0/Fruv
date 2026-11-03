@@ -312,3 +312,7 @@
         }
     }
 </style>
+
+<?php if ($esCliente): ?>
+    <?= view('plantilla/chatbot') ?>
+<?php endif; ?>
