@@ -11,6 +11,7 @@
     $actual = static fn (bool $activo): string => $activo ? ' aria-current="page"' : '';
 ?>
 <link rel="stylesheet" href="<?= base_url('css/accesibilidad.css') ?>">
+<link rel="stylesheet" href="<?= base_url('css/movil.css') ?>">
 
 <a href="#contenido-principal" class="skip-link">Saltar al contenido principal</a>
 
