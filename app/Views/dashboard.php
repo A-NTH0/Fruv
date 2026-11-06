@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Gestión - Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="<?= base_url('vendor/fonts/fonts.css') ?>">
+    <script src="<?= base_url('vendor/lucide/lucide.min.js') ?>"></script>
     <link rel="stylesheet" href="<?= base_url('css/dashboard.css') ?>">
+    <link rel="stylesheet" href="<?= base_url('vendor/tailwind/tailwind.css') ?>">
 </head>
 <body class="bg-[#F8FAFC] flex min-h-screen">
     <?= view('plantilla/menu') ?>

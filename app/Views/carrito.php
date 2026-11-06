@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fruver - Mi carrito</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="<?= base_url('vendor/sweetalert2/sweetalert2.all.min.js') ?>"></script>
     <link rel="stylesheet" href="<?= base_url('css/dashboard.css') ?>">
     <link rel="stylesheet" href="<?= base_url('css/cliente.css') ?>">
+    <link rel="stylesheet" href="<?= base_url('vendor/tailwind/tailwind.css') ?>">
 </head>
 <body>
     <?= view('plantilla/menu') ?>

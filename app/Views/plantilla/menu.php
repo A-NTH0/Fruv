@@ -164,7 +164,7 @@
       });
   })();
 </script>
-<script src="https://unpkg.com/lucide@latest"></script>
+<script src="<?= base_url('vendor/lucide/lucide.min.js') ?>"></script>
 <script>
   if (window.lucide) {
       window.lucide.createIcons();
