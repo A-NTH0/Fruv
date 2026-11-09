@@ -5,11 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fruver - Historial de compras</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="<?= base_url('vendor/lucide/lucide.min.js') ?>"></script>
     <link rel="stylesheet" href="<?= base_url('css/dashboard.css') ?>">
     <link rel="stylesheet" href="<?= base_url('css/cliente.css') ?>">
     <link rel="stylesheet" href="<?= base_url('css/pedido-vendedor.css') ?>">
+    <link rel="stylesheet" href="<?= base_url('vendor/tailwind/tailwind.css') ?>">
 </head>
 <body>
     <?= view('plantilla/menu') ?>

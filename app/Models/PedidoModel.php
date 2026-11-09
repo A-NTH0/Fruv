@@ -475,6 +475,24 @@ class PedidoModel extends Model
 
         if (!$pedido) return null;
 
+        // Dirección del cliente para el ticket (mismo formato que ve el repartidor).
+        $dir    = $db->table('direccion')->where('id_cliente', $pedido['id_cliente1'])->get()->getRowArray() ?: [];
+        $limpio = static fn ($v): string => (! empty($v) && ! in_array(strtolower((string) $v), ['null', 'nnn'], true)) ? trim((string) $v) : '';
+        $partesDir = [];
+        if ($limpio($dir['calle'] ?? '') !== '') {
+            $partesDir[] = $limpio($dir['calle']) . ($limpio($dir['numero'] ?? '') !== '' ? ' #' . $limpio($dir['numero']) : '');
+        }
+        if ($limpio($dir['colonia'] ?? '') !== '') {
+            $partesDir[] = 'Col. ' . $limpio($dir['colonia']);
+        }
+        if ($limpio($dir['municipio'] ?? '') !== '') {
+            $partesDir[] = $limpio($dir['municipio']);
+        }
+        if ($limpio($dir['estado'] ?? '') !== '') {
+            $partesDir[] = $limpio($dir['estado']);
+        }
+        $pedido['direccion_cliente'] = implode(', ', $partesDir);
+
         $pedido['detalles'] = $db->table('producto_pedido pp')
             ->select('pp.id_producto3, pp.cantidad, pp.precio_venta, p.nombre as nombre_producto, pp.unidad_venta, pp.total')
             ->join('producto p', 'pp.id_producto3 = p.id_producto')

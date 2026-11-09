@@ -5,7 +5,7 @@
    que solo aparece para decir "fresco / disponible / entregado".
    Se carga desde accesibilidad.css, por lo que llega a todas las vistas.
    ========================================================================== */
-@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap');
+@import url('../vendor/fonts/fonts.css');
 
 :root {
     /* Rojos: estructura y acciones */

@@ -209,7 +209,9 @@ class App extends BaseConfig
         if (PHP_SAPI !== 'cli' && ! empty($_SERVER['HTTP_HOST'])
             && preg_match('/^(localhost|(\d{1,3}\.){3}\d{1,3})(:\d+)?$/', $_SERVER['HTTP_HOST'])) {
             $esquema       = (! empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $this->baseURL = $esquema . '://' . $_SERVER['HTTP_HOST'] . '/Fruv/public/';
+            // Carpeta real desde la que se sirve: /Fruv/public/ en Apache, / en `php spark serve`.
+            $carpeta       = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/index.php')), '/') . '/';
+            $this->baseURL = $esquema . '://' . $_SERVER['HTTP_HOST'] . $carpeta;
         }
     }
 }

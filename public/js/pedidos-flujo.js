@@ -555,8 +555,9 @@ function armarLinkWhatsAppAdmin(p, detalles, historial) {
               + `Tu pedido #${p.id_pedido} de *FRUVER* ${estadoTxt}.\n\n`
               + `*Resumen de tu ticket:*\n${lineas}\n`
               + `*Total:* ${dineroWA(p.total)}\n`
-              + `*Modalidad:* ${cobro}\n\n`
-              + `¡Gracias por comprar en Fruver!`;
+              + `*Modalidad:* ${cobro}\n`
+              + (p.direccion_cliente ? `*Dirección:* ${p.direccion_cliente}\n` : '')
+              + `\n¡Gracias por comprar en Fruver!`;
 
     return `https://wa.me/${tel}?text=${encodeURIComponent(msg)}`;
 }

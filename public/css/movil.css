@@ -1,0 +1,26 @@
+/* Ajustes para celular y tablet angosta (se carga desde plantilla/menu.php, después de los CSS de cada vista).
+   Evita que una fila, tabla o pestaña más ancha que la pantalla agrande toda la página. */
+@media (max-width: 1023px) {
+    html, body { max-width: 100%; overflow-x: hidden; }
+
+    main, .main-content { min-width: 0; max-width: 100%; }
+    main .flex > *, main .grid > * { min-width: 0; }
+
+    /* Encabezados con título + buscador + botón: bajan de línea en vez de salirse */
+    main .flex.justify-between { flex-wrap: wrap; gap: .75rem; }
+    main .flex.justify-between > .flex { flex-wrap: wrap; width: 100%; }
+    main form.relative, main form.relative input[type="text"], main form.relative input[type="search"] { max-width: 100%; }
+    main .flex.justify-between input[type="text"],
+    main .flex.justify-between input[type="search"] { width: 100%; }
+
+    /* Pestañas (inventario, etc.): se desplazan dentro de su propia fila */
+    main nav.tabs, main .tabs { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    /* Tablas y contenedores con scroll interno */
+    main .overflow-x-auto, main .overflow-hidden, main .overflow-auto { max-width: 100%; }
+    main .overflow-hidden:has(> table), main .overflow-hidden:has(> div > table) { overflow-x: auto; }
+
+    /* Tarjetas de ancho fijo */
+    .card-figma { width: 100%; max-width: 100%; }
+    main img { max-width: 100%; }
+}

@@ -11,6 +11,7 @@
     $actual = static fn (bool $activo): string => $activo ? ' aria-current="page"' : '';
 ?>
 <link rel="stylesheet" href="<?= base_url('css/accesibilidad.css') ?>">
+<link rel="stylesheet" href="<?= base_url('css/movil.css') ?>">
 
 <a href="#contenido-principal" class="skip-link">Saltar al contenido principal</a>
 
@@ -109,16 +110,19 @@
             </a>
         <?php endif; ?>
         <?php if (in_array($pagina_actual, ['pedidos', 'mis-pedidos'], true) || ($pagina_actual === 'repartidores' && $esRepartidor)): ?>
-            <div class="px-3 py-2">
-                <label for="selFrecuencia" class="block text-xs font-bold uppercase tracking-wider opacity-70 mb-1">Actualización automática</label>
-                <select id="selFrecuencia" class="w-full rounded-lg border px-2 py-1.5 text-sm text-gray-800"
-                        onchange="fruverCambiarFrecuencia(this.value)">
-                    <option value="3000">Cada 3 segundos</option>
-                    <option value="5000">Cada 5 segundos (recomendado)</option>
-                    <option value="10000">Cada 10 segundos</option>
-                    <option value="15000">Cada 15 segundos</option>
-                    <option value="30000">Cada 30 segundos</option>
-                    <option value="60000">Cada minuto</option>
+            <div class="frecuencia-ctl">
+                <label for="selFrecuencia" class="frecuencia-label">
+                    <i data-lucide="refresh-cw" class="w-4 h-4" aria-hidden="true"></i>
+                    <span class="frecuencia-texto" aria-hidden="true">Actualizar cada</span>
+                    <span class="sr-only">Actualización automática cada</span>
+                </label>
+                <select id="selFrecuencia" onchange="fruverCambiarFrecuencia(this.value)">
+                    <option value="3000">3 s</option>
+                    <option value="5000">5 s</option>
+                    <option value="10000">10 s</option>
+                    <option value="15000">15 s</option>
+                    <option value="30000">30 s</option>
+                    <option value="60000">1 min</option>
                 </select>
             </div>
         <?php endif; ?>
@@ -161,7 +165,7 @@
       });
   })();
 </script>
-<script src="https://unpkg.com/lucide@latest"></script>
+<script src="<?= base_url('vendor/lucide/lucide.min.js') ?>"></script>
 <script>
   if (window.lucide) {
       window.lucide.createIcons();
@@ -279,6 +283,51 @@
         text-align: center !important;
     }
     .sidebar .nav-item[href$="/logout"] { margin-left: auto !important; }
+    /* Selector de actualización automática: integrado a la barra, junto a "Cerrar sesión" */
+    .sidebar nav > .frecuencia-ctl {
+        display: inline-flex !important;
+        flex: 0 0 auto !important;
+        align-items: center !important;
+        gap: .45rem !important;
+        min-height: 42px !important;
+        margin-left: auto !important;
+        padding: 0 .3rem 0 .8rem !important;
+        color: #d1c7cb !important;
+        background: rgba(255,255,255,.07) !important;
+        border: 1px solid rgba(255,255,255,.16) !important;
+        border-radius: .7rem !important;
+        transition: background .18s ease, border-color .18s ease !important;
+    }
+    .sidebar .frecuencia-ctl:hover, .sidebar .frecuencia-ctl:focus-within {
+        background: rgba(255,255,255,.12) !important;
+        border-color: rgba(255,255,255,.4) !important;
+    }
+    .sidebar .frecuencia-label {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: .4rem !important;
+        margin: 0 !important;
+        font-size: .78rem !important;
+        font-weight: 600 !important;
+        white-space: nowrap !important;
+        cursor: pointer !important;
+    }
+    .sidebar .frecuencia-label i, .sidebar .frecuencia-label svg { width: 15px !important; height: 15px !important; color: #c2b3b8 !important; }
+    .sidebar .frecuencia-ctl select {
+        min-height: 36px !important;
+        margin: 0 !important;
+        padding: .25rem .35rem .25rem .45rem !important;
+        color: #fff !important;
+        background-color: transparent !important;
+        border: 0 !important;
+        border-radius: .5rem !important;
+        box-shadow: none !important;
+        font-size: .84rem !important;
+        font-weight: 700 !important;
+        cursor: pointer !important;
+    }
+    .sidebar .frecuencia-ctl select option { color: #2a1a1d; background: #fff; }
+    .sidebar .frecuencia-ctl + .nav-item[href$="/logout"] { margin-left: .35rem !important; }
     .mobile-menu-btn, .sidebar-overlay { display: none !important; }
     .main-content, .cli-main, body > main, .sidebar ~ main {
         width: 100% !important;
@@ -300,6 +349,8 @@
     }
     @media (max-width: 640px) {
         :root { --app-nav-height: 62px; }
+        .sidebar .frecuencia-texto { display: none !important; }
+        .sidebar nav > .frecuencia-ctl { min-height: 38px !important; padding-left: .6rem !important; }
         .sidebar { gap: .65rem !important; padding-inline: .7rem !important; }
         .app-brand { min-width: 112px !important; max-width: 112px !important; }
         .app-brand-name { font-size: .87rem !important; }
