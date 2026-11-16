@@ -46,10 +46,11 @@ class AuthFilter implements FilterInterface
             $esLogout          = $segments === ['logout'];
             $esPortal          = strtoupper($request->getMethod()) === 'GET' && $segments === ['repartidores'];
             $esActualizaciones = strtoupper($request->getMethod()) === 'GET' && $segments === ['repartidores', 'actualizaciones'];
+            $esRuta            = strtoupper($request->getMethod()) === 'GET' && $segments === ['repartidores', 'ruta'];
             $esCambiarEstado   = strtoupper($request->getMethod()) === 'POST' && $segments === ['repartidores', 'cambiar-estado'];
             $esTomarPedido     = strtoupper($request->getMethod()) === 'POST' && $segments === ['repartidores', 'tomar-pedido'];
 
-            if (! $esLogout && ! $esPortal && ! $esActualizaciones && ! $esCambiarEstado && ! $esTomarPedido) {
+            if (! $esLogout && ! $esPortal && ! $esActualizaciones && ! $esRuta && ! $esCambiarEstado && ! $esTomarPedido) {
                 return redirect()->to(base_url('repartidores'));
             }
 

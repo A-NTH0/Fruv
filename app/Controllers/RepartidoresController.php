@@ -2,6 +2,8 @@
 namespace App\Controllers;
 
 use App\Libraries\AccountCredentials;
+use App\Libraries\Geocoder;
+use App\Libraries\RutaDijkstra;
 use App\Models\RepartidorModel;
 
 class RepartidoresController extends BaseController
@@ -64,7 +66,6 @@ class RepartidoresController extends BaseController
         }
 
         $idRepartidor = (int) session()->get('repartidor_id');
-        session_write_close(); // libera el bloqueo de sesión: el sondeo no espera a otras peticiones
         $datos        = $this->obtenerDatosEntregas($idRepartidor);
 
         // RNF-08: si nada cambió desde la última firma del cliente, respuesta mínima.
@@ -86,6 +87,140 @@ class RepartidoresController extends BaseController
             'entregados'  => $datos['entregados'],
             'firma'       => $datos['firma'],
             'timestamp'   => date('H:i:s'),
+        ]);
+    }
+
+    /**
+     * Ruta sugerida con Dijkstra para los pedidos activos del repartidor.
+     * Opcional: ?lat=&lng= (GPS del repartidor). Sin GPS, sale de la tienda (.env).
+     */
+    public function ruta()
+    {
+        if (session()->get('auth_role') !== 'repartidor') {
+            return $this->response->setStatusCode(403)->setJSON(['ok' => false]);
+        }
+
+        $idRepartidor = (int) session()->get('repartidor_id');
+        $db           = db_connect();
+
+        // ?pedidos=12,15  → recorrido con esos pedidos (modo "Iniciar recorrido")
+        $ids = array_values(array_filter(
+            array_map('intval', explode(',', (string) $this->request->getGet('pedidos'))),
+            static fn ($i) => $i > 0
+        ));
+
+        $filas = $db->query("
+            SELECT p.id_pedido,
+                   c.nombre, c.ap_paterno, c.ap_materno,
+                   d.id_direccion, d.calle, d.numero, d.colonia, d.municipio, d.estado AS dir_estado,
+                   d.latitud, d.longitud, d.geo_intento_at,
+                   (
+                       SELECT s.estado FROM status s
+                       WHERE s.id_pedido2 = p.id_pedido
+                         AND s.estado IN ('pedido','confirmado','en_transito','entregado','cancelado')
+                       ORDER BY s.id_status DESC LIMIT 1
+                   ) AS estado_logistico
+            FROM pedido p
+            INNER JOIN cliente c ON c.id_cliente = p.id_cliente1
+            LEFT JOIN direccion d ON d.id_cliente = c.id_cliente
+            WHERE p.id_repartidor = ?
+            ORDER BY p.id_pedido ASC, (d.latitud IS NULL) ASC, d.id_direccion ASC
+        ", [$idRepartidor])->getResultArray();
+
+        // Un registro por pedido, solo los que siguen activos.
+        $unicos = [];
+        foreach ($filas as $f) {
+            $id = (int) $f['id_pedido'];
+            if (isset($unicos[$id]) || ! in_array($f['estado_logistico'], ['confirmado', 'en_transito'], true)) {
+                continue;
+            }
+            $unicos[$id] = $f;
+        }
+
+        // Los pedidos elegidos se geocodifican primero.
+        if ($ids) {
+            uksort($unicos, static fn ($a, $b) => (int) in_array($b, $ids, true) <=> (int) in_array($a, $ids, true));
+        }
+
+        // Direcciones sin coordenadas: se geocodifican ahora (máx. 3 por consulta) y se guardan.
+        $geocodificadas = 0;
+        foreach ($unicos as $id => $f) {
+            if ($f['id_direccion'] === null || $f['latitud'] !== null || $geocodificadas >= 3) {
+                continue;
+            }
+            $reciente = $f['geo_intento_at'] !== null && strtotime($f['geo_intento_at']) > time() - 86400;
+            if ($reciente) {
+                continue; // ya se intentó hoy y falló
+            }
+
+            $geocodificadas++;
+            $geo = Geocoder::geocodificar([
+                'calle' => $f['calle'], 'numero' => $f['numero'], 'colonia' => $f['colonia'],
+                'municipio' => $f['municipio'], 'estado' => $f['dir_estado'],
+            ]);
+            $db->table('direccion')->where('id_direccion', $f['id_direccion'])->update([
+                'latitud'        => $geo['lat'] ?? null,
+                'longitud'       => $geo['lng'] ?? null,
+                'geo_precision'  => $geo['precision'] ?? null,
+                'geo_intento_at' => date('Y-m-d H:i:s'),
+            ]);
+            if ($geo !== null) {
+                $unicos[$id]['latitud']  = $geo['lat'];
+                $unicos[$id]['longitud'] = $geo['lng'];
+            }
+        }
+
+        $pedidos = [];
+        foreach ($unicos as $id => $f) {
+            $partes = [];
+            foreach ([['calle', 'numero'], ['colonia'], ['municipio'], ['dir_estado']] as $campos) {
+                $txt = trim((string) ($f[$campos[0]] ?? ''));
+                if ($txt === '' || in_array(strtolower($txt), ['null', 'nnn'], true)) {
+                    continue;
+                }
+                if ($campos[0] === 'calle' && (int) $f['numero'] > 0) {
+                    $txt .= ' #' . (int) $f['numero'];
+                }
+                $partes[] = $txt;
+            }
+
+            $pedidos[] = [
+                'id_pedido'      => $id,
+                'cliente_nombre' => trim($f['nombre'] . ' ' . $f['ap_paterno']),
+                'direccion'      => $partes ? implode(', ', $partes) : 'Dirección sin confirmar',
+                'estado'         => $f['estado_logistico'],
+                'lat'            => $f['latitud'] !== null ? (float) $f['latitud'] : null,
+                'lng'            => $f['longitud'] !== null ? (float) $f['longitud'] : null,
+            ];
+        }
+
+        // Punto de salida: GPS del repartidor si lo mandó; si no, la tienda.
+        $lat = filter_var($this->request->getGet('lat'), FILTER_VALIDATE_FLOAT);
+        $lng = filter_var($this->request->getGet('lng'), FILTER_VALIDATE_FLOAT);
+        $conGps = $lat !== false && $lng !== false && abs($lat) <= 90 && abs($lng) <= 180;
+        $origen = $conGps
+            ? ['lat' => (float) $lat, 'lng' => (float) $lng]
+            : ['lat' => (float) env('fruver.origenLat', 19.3139), 'lng' => (float) env('fruver.origenLng', -97.9206)];
+
+        if ($ids) {
+            $seleccion = array_values(array_filter($pedidos, static fn ($p) => in_array($p['id_pedido'], $ids, true)));
+            $resto     = array_values(array_filter($pedidos, static fn ($p) => ! in_array($p['id_pedido'], $ids, true)));
+            $plan      = RutaDijkstra::planificarSeleccion($origen, $seleccion);
+
+            return $this->response->setJSON([
+                'ok'         => true,
+                'origen_gps' => $conGps,
+                'ruta'       => $plan,
+                'cercanos'   => $plan['hay_ruta'] ? RutaDijkstra::cercanos($origen, $plan['paradas'], $resto) : [],
+                'timestamp'  => date('H:i:s'),
+            ]);
+        }
+
+        return $this->response->setJSON([
+            'ok'        => true,
+            'origen_gps' => $conGps,
+            'ruta'      => RutaDijkstra::planificar($origen, $pedidos),
+            'timestamp' => date('H:i:s'),
         ]);
     }
 

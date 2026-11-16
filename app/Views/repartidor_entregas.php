@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fruver - Portal de Repartidor</title>
-    <script src="<?= base_url('vendor/lucide/lucide.min.js') ?>"></script>
-    <script src="<?= base_url('vendor/sweetalert2/sweetalert2.all.min.js') ?>"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="<?= base_url('css/dashboard.css') ?>">
     <link rel="stylesheet" href="<?= base_url('css/cliente.css') ?>">
     <link rel="stylesheet" href="<?= base_url('css/repartidor-entregas.css') ?>">
-    <link rel="stylesheet" href="<?= base_url('vendor/tailwind/tailwind.css') ?>">
 </head>
 <body class="bg-gray-50">
     <?= view('plantilla/menu') ?>
@@ -88,6 +88,9 @@
                 </div>
             </div>
 
+            <!-- Ruta sugerida (Dijkstra): se llena desde js/repartidor-ruta.js y solo se ve en "Mis entregas" -->
+            <section id="panel-ruta" class="mb-6" aria-live="polite"></section>
+
             <!-- Contenedores dinámicos de cada sección -->
             <section id="sec-asignados" class="space-y-4" aria-live="polite"></section>
             <section id="sec-disponibles" class="space-y-4 hidden" aria-live="polite"></section>
@@ -140,5 +143,6 @@
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE) ?>;
     </script>
     <script src="<?= base_url('js/repartidor-entregas.js') ?>"></script>
+    <script src="<?= base_url('js/repartidor-ruta.js') ?>"></script>
 </body>
 </html>

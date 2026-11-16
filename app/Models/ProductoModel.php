@@ -177,11 +177,6 @@ class ProductoModel extends Model
             ->getResultArray();
     }
 
-    public function getAllProductos()
-    {
-        return $this->findAll();
-    }
-
     public function getProductosActivos()
     {
         return $this->where('estado', 'activo')->findAll();

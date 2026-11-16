@@ -50,16 +50,6 @@ class PedidoModel extends Model
         return round((float) ($fila['total'] ?? 0), 2);
     }
 
-    public function getHistorialEstados($idPedido)
-    {
-        $db = \Config\Database::connect();
-        return $db->table('status')
-            ->where('id_pedido2', $idPedido)
-            ->orderBy('id_status', 'ASC')
-            ->get()
-            ->getResultArray();
-    }
-
     public function cambiarEstado($idPedido, $nuevoEstado, $repartidorId = null)
     {
         $db = \Config\Database::connect();
@@ -171,61 +161,32 @@ class PedidoModel extends Model
         $db     = \Config\Database::connect();
         $offset = ($page - 1) * $perPage;
 
-        if ($estado == 'credito' || $estado == 'pagado') {
-            // Crédito y Pagado se determinan por el último estado en la tabla status
-            $subquery = "(SELECT id_pedido2, MAX(id_status) as max_id FROM status GROUP BY id_pedido2) as latest";
+        // El estado vigente (incluido crédito y pagado) es el último registro de la tabla status.
+        $subquery = "(SELECT id_pedido2, MAX(id_status) as max_id FROM status GROUP BY id_pedido2) as latest";
 
-            $ids = $db->table('status s1')
-                ->select('s1.id_pedido2')
-                ->join($subquery, 'latest.id_pedido2 = s1.id_pedido2 AND latest.max_id = s1.id_status', 'inner')
-                ->where('s1.estado', $estado)
-                ->orderBy('s1.fecha', 'DESC')
-                ->limit($perPage, $offset)
-                ->get()
-                ->getResultArray();
+        $ids = $db->table('status s1')
+            ->select('s1.id_pedido2')
+            ->join($subquery, 'latest.id_pedido2 = s1.id_pedido2 AND latest.max_id = s1.id_status', 'inner')
+            ->where('s1.estado', $estado)
+            ->orderBy('s1.fecha', 'DESC')
+            ->limit($perPage, $offset)
+            ->get()
+            ->getResultArray();
 
-            $idsPedido = array_column($ids, 'id_pedido2');
+        $idsPedido = array_column($ids, 'id_pedido2');
 
-            if (empty($idsPedido)) {
-                return [];
-            }
-
-            $pedidos = $db->table('pedido p')
-                ->select('p.*, c.nombre as cliente_nombre, c.ap_paterno as cliente_apellido, c.telefono as cliente_telefono, r.nombre as repartidor_nombre, r.ap_paterno as repartidor_apellido')
-                ->join('cliente c', 'p.id_cliente1 = c.id_cliente')
-                ->join('repartidor r', 'p.id_repartidor = r.id_repartidor', 'left')
-                ->whereIn('p.id_pedido', $idsPedido)
-                ->orderBy('p.fecha', 'DESC')
-                ->get()
-                ->getResultArray();
-
-        } else {
-            $subquery = "(SELECT id_pedido2, MAX(id_status) as max_id FROM status GROUP BY id_pedido2) as latest";
-
-            $ids = $db->table('status s1')
-                ->select('s1.id_pedido2')
-                ->join($subquery, 'latest.id_pedido2 = s1.id_pedido2 AND latest.max_id = s1.id_status', 'inner')
-                ->where('s1.estado', $estado)
-                ->orderBy('s1.fecha', 'DESC')
-                ->limit($perPage, $offset)
-                ->get()
-                ->getResultArray();
-
-            $idsPedido = array_column($ids, 'id_pedido2');
-
-            if (empty($idsPedido)) {
-                return [];
-            }
-
-            $pedidos = $db->table('pedido p')
-                ->select('p.*, c.nombre as cliente_nombre, c.ap_paterno as cliente_apellido, c.telefono as cliente_telefono, r.nombre as repartidor_nombre, r.ap_paterno as repartidor_apellido')
-                ->join('cliente c', 'p.id_cliente1 = c.id_cliente')
-                ->join('repartidor r', 'p.id_repartidor = r.id_repartidor', 'left')
-                ->whereIn('p.id_pedido', $idsPedido)
-                ->orderBy('p.fecha', 'DESC')
-                ->get()
-                ->getResultArray();
+        if (empty($idsPedido)) {
+            return [];
         }
+
+        $pedidos = $db->table('pedido p')
+            ->select('p.*, c.nombre as cliente_nombre, c.ap_paterno as cliente_apellido, c.telefono as cliente_telefono, r.nombre as repartidor_nombre, r.ap_paterno as repartidor_apellido')
+            ->join('cliente c', 'p.id_cliente1 = c.id_cliente')
+            ->join('repartidor r', 'p.id_repartidor = r.id_repartidor', 'left')
+            ->whereIn('p.id_pedido', $idsPedido)
+            ->orderBy('p.fecha', 'DESC')
+            ->get()
+            ->getResultArray();
 
         foreach ($pedidos as &$pedido) {
             $pedido['productos'] = $db->table('producto_pedido pp')
@@ -241,29 +202,15 @@ class PedidoModel extends Model
 
     public function getCountByEstado($estado)
     {
-        $db = \Config\Database::connect();
+        $subquery = "(SELECT id_pedido2, MAX(id_status) as max_id FROM status GROUP BY id_pedido2) as latest";
+        $result   = \Config\Database::connect()->table('status s1')
+            ->select('COUNT(DISTINCT s1.id_pedido2) as total')
+            ->join($subquery, 'latest.id_pedido2 = s1.id_pedido2 AND latest.max_id = s1.id_status', 'inner')
+            ->where('s1.estado', $estado)
+            ->get()
+            ->getRowArray();
 
-        if ($estado == 'credito' || $estado == 'pagado') {
-            $subquery = "(SELECT id_pedido2, MAX(id_status) as max_id FROM status GROUP BY id_pedido2) as latest";
-            $result   = $db->table('status s1')
-                ->select('COUNT(DISTINCT s1.id_pedido2) as total')
-                ->join($subquery, 'latest.id_pedido2 = s1.id_pedido2 AND latest.max_id = s1.id_status', 'inner')
-                ->where('s1.estado', $estado)
-                ->get()
-                ->getRowArray();
-            return $result['total'] ?? 0;
-        } else {
-            $subquery = "(SELECT id_pedido2, MAX(id_status) as max_id FROM status GROUP BY id_pedido2) as latest";
-
-            $result = $db->table('status s1')
-                ->select('COUNT(DISTINCT s1.id_pedido2) as total')
-                ->join($subquery, 'latest.id_pedido2 = s1.id_pedido2 AND latest.max_id = s1.id_status', 'inner')
-                ->where('s1.estado', $estado)
-                ->get()
-                ->getRowArray();
-
-            return $result['total'] ?? 0;
-        }
+        return $result['total'] ?? 0;
     }
 
     // ─────────────────────────────────────────────
@@ -583,18 +530,6 @@ class PedidoModel extends Model
         $db->transComplete();
         return $db->transStatus();
     }
-
-    public function getHistorialAbonos($idPedido)
-    {
-        $db = \Config\Database::connect();
-        return $db->table('abonos')
-            ->where('id_pedido', $idPedido)
-            ->orderBy('fecha_registro', 'DESC')
-            ->get()
-            ->getResultArray();
-    }
-
-
 
     public function getStatsCards()
     {

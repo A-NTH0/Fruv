@@ -105,14 +105,7 @@ class VendedoresController extends BaseController
         }
 
         if (strtolower(trim((string) $vendedor['email'])) !== $input['email']) {
-            $input += [
-                'email_verified_at' => null,
-                'email_verification_code_hash' => null,
-                'email_verification_expires_at' => null,
-                'email_verification_sent_at' => null,
-                'email_verification_attempts' => 0,
-                'email_verification_locked_until' => null,
-            ];
+            $input += AccountCredentials::reiniciarVerificacion();
         }
 
         if (! $model->update($id, $input)) {

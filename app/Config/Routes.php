@@ -26,7 +26,6 @@ $routes->get('productos/eliminar/(:num)', 'ProductosController::eliminar/$1');
 $routes->get('inventario', 'InventarioController::index');
 $routes->post('inventario/registrar-entrada', 'InventarioController::registrarEntrada');
 $routes->post('inventario/registrar-merma', 'InventarioController::registrarMerma');
-$routes->post('inventario/procesar-merma-masiva', 'InventarioController::procesarMermaMasiva');
 $routes->get('inventario/detalles-stock/(:num)', 'InventarioController::detallesStock/$1');
 
 $routes->get('clientes', 'ClientesController::index');
@@ -51,6 +50,7 @@ $routes->post('repartidores/actualizar', 'RepartidoresController::actualizar');
 $routes->get('repartidores/verificarEliminar/(:num)', 'RepartidoresController::verificarEliminar/$1');
 $routes->get('repartidores/eliminar/(:num)', 'RepartidoresController::eliminar/$1');
 $routes->get('repartidores/actualizaciones', 'RepartidoresController::actualizaciones');
+$routes->get('repartidores/ruta', 'RepartidoresController::ruta');
 $routes->post('repartidores/cambiar-estado', 'RepartidoresController::cambiarEstado');
 $routes->post('repartidores/tomar-pedido', 'RepartidoresController::tomarPedido');
 
@@ -89,9 +89,8 @@ $routes->get('mis-pedidos', 'ClientePedidosController::index');
 $routes->get('mis-pedidos/estados', 'ClientePedidosController::estados');
 $routes->post('mis-pedidos/cancelar', 'ClientePedidosController::cancelar');
 $routes->post('mis-pedidos/abonar', 'ClientePedidosController::abonar');
+$routes->get('perfil', 'ClientePedidosController::perfil');
 
-// Asistente virtual (chatbot): solo cliente.
 $routes->get('chatbot/inicio', 'ChatbotController::inicio');
 $routes->post('chatbot/mensaje', 'ChatbotController::mensaje');
 $routes->post('chatbot/seguimiento', 'ChatbotController::seguimiento');
-$routes->get('perfil', 'ClientePedidosController::perfil');

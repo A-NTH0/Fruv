@@ -420,14 +420,7 @@ class ClientesController extends BaseController
             'email'      => $email,
         ];
         if (strtolower(trim((string) $cliente['email'])) !== $email) {
-            $changes += [
-                'email_verified_at' => null,
-                'email_verification_code_hash' => null,
-                'email_verification_expires_at' => null,
-                'email_verification_sent_at' => null,
-                'email_verification_attempts' => 0,
-                'email_verification_locked_until' => null,
-            ];
+            $changes += AccountCredentials::reiniciarVerificacion();
         }
 
         if (! $model->update($id, $changes)) {

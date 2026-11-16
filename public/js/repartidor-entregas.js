@@ -186,6 +186,13 @@ function crearTarjetaPedido(p, tipoSeccion) {
                 </a>
             ` : ''}
 
+            ${(tipoSeccion === 'asignados' && p.tiene_mapa && (p.estado === 'confirmado' || p.estado === 'en_transito')) ? `
+                <button type="button" onclick="iniciarRecorrido(${p.id_pedido})"
+                        class="rep-action-btn bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
+                    <i data-lucide="navigation" class="w-4 h-4"></i> Iniciar recorrido
+                </button>
+            ` : ''}
+
             ${linkMaps ? `
                 <a href="${linkMaps}" target="_blank" rel="noopener"
                    class="rep-action-btn bg-white hover:bg-gray-50 text-gray-800 border border-gray-300">
@@ -266,6 +273,7 @@ function cambiarVistaRep(vista) {
         document.getElementById('nav-rep-' + v)?.classList.toggle('active', v === vista);
     });
     document.getElementById('buscador-wrapper')?.classList.toggle('hidden', vista === 'perfil');
+    document.getElementById('panel-ruta')?.classList.toggle('hidden', vista !== 'asignados');
     // Móvil: mantener visible la opción activa del menú horizontal (RNF-07)
     document.getElementById('nav-rep-' + vista)?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
 }
@@ -328,7 +336,7 @@ async function tomarPedidoDisponible(idPedido) {
     }
 }
 
-const SONDEO_MS = 5000;
+const SONDEO_MS = 8000;
 let sondeoTimer  = null;
 let sincronizando = false;
 let tituloBase   = document.title;
@@ -346,7 +354,7 @@ async function sincronizarPedidos(mostrarToastManual = false) {
     try {
         const url = BASE_URL + 'repartidores/actualizaciones'
                   + (mostrarToastManual || !firmaActual ? '' : '?firma=' + encodeURIComponent(firmaActual));
-        const res = await (window.fruverFetch || fetch)(url, { headers: { 'Accept': 'application/json' } });
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
         if (!res.ok) { marcarConexion(false); return; }
         const data = await res.json();
         if (!data.ok) return;
@@ -374,6 +382,7 @@ async function sincronizarPedidos(mostrarToastManual = false) {
 
         actualizarBadgesMenu(DATA_ASIGNADOS.length, DATA_DISPONIBLES.length);
         renderizarVistas();
+        if (window.cargarRutaRepartidor) window.cargarRutaRepartidor();
 
         const nuevos = DATA_DISPONIBLES.filter(p => !idsPrevios.has(p.id_pedido) && p.estado === 'confirmado').length;
         if (nuevos > 0 && !mostrarToastManual) {
@@ -420,7 +429,7 @@ function programarSondeo() {
     sondeoTimer = setTimeout(async () => {
         await sincronizarPedidos(false);
         programarSondeo();
-    }, window.fruverFrecuenciaMs ? fruverFrecuenciaMs(SONDEO_MS) : SONDEO_MS);
+    }, SONDEO_MS);
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -430,8 +439,6 @@ document.addEventListener('visibilitychange', () => {
         sincronizarPedidos(false).then(programarSondeo);
     }
 });
-
-window.addEventListener('fruver:frecuencia', programarSondeo);
 
 // Exponer funciones al objeto global para eventos onclick del menú y tarjetas
 window.cambiarVistaRep       = cambiarVistaRep;

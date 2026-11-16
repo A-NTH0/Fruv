@@ -69,18 +69,7 @@ class ProductosController extends BaseController
             $archivo->move(FCPATH . 'uploads', $nombreImagen);
         }
 
-        $precio = (float) ($this->request->getPost('precio') ?: 0);
-        $model->guardarProducto([
-            'codigo'       => $codigo,
-            'nombre'       => $nombre,
-            'descripcion'  => $this->request->getPost('descripcion'),
-            'categoria'    => $this->request->getPost('categoria'),
-            'unidad_venta' => $this->request->getPost('unidad_venta'),
-            'precio'       => $precio,
-            'total'        => $precio,
-            'estado'       => $this->request->getPost('estado') ?: 'activo',
-            'imagen'       => $nombreImagen,
-        ]);
+        $model->guardarProducto($this->datosProducto($codigo, $nombre, $nombreImagen));
 
         return redirect()->to(base_url('productos'));
     }
@@ -133,8 +122,17 @@ class ProductosController extends BaseController
             $archivo->move(FCPATH . 'uploads', $nombreImagen);
         }
 
+        $model->actualizarProducto($id, $this->datosProducto($codigo, $nombre, $nombreImagen));
+
+        return redirect()->to(base_url('productos'));
+    }
+
+    /** Campos del producto tomados del formulario (los usan guardar y actualizar). */
+    private function datosProducto(string $codigo, string $nombre, string $imagen): array
+    {
         $precio = (float) ($this->request->getPost('precio') ?: 0);
-        $model->actualizarProducto($id, [
+
+        return [
             'codigo'       => $codigo,
             'nombre'       => $nombre,
             'descripcion'  => $this->request->getPost('descripcion'),
@@ -143,10 +141,8 @@ class ProductosController extends BaseController
             'precio'       => $precio,
             'total'        => $precio,
             'estado'       => $this->request->getPost('estado') ?: 'activo',
-            'imagen'       => $nombreImagen,
-        ]);
-
-        return redirect()->to(base_url('productos'));
+            'imagen'       => $imagen,
+        ];
     }
 
     public function sugerirCodigo()

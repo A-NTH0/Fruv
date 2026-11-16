@@ -25,8 +25,8 @@ class ClienteModel extends Model
     ];
 
    
-    public const UMBRAL_PREFERENCIAL    = 5;   
-    public const DESCUENTO_MAXIMO       = 90; 
+    public const UMBRAL_PREFERENCIAL    = 5;   // pedidos de contado concluidos para ser preferencial
+    public const DESCUENTO_MAXIMO       = 30;  // % máximo de descuento manual a un cliente preferencial
 
     /**
      * Subconsulta: pedidos de contado concluidos de un cliente (último estado entregado
@@ -50,49 +50,52 @@ class ClienteModel extends Model
         return (int) $manual === 1 || $compras >= self::UMBRAL_PREFERENCIAL;
     }
 
-    /** ¿El cliente es preferencial hoy? (marca manual o 5+ pedidos de contado pagados). */
+    /** ¿El cliente es preferencial? (compras de contado concluidas o marca manual del admin). */
     public function esPreferencialPorId(int $idCliente): bool
     {
         $fila = $this->select('cliente.preferencial_manual, ' . self::sqlCompras(), false)
-                     ->where('cliente.baja', 0)
-                     ->find($idCliente);
+                     ->where('cliente.id_cliente', $idCliente)
+                     ->first();
 
         return $fila !== null
-            && self::esPreferencial((int) ($fila['compras'] ?? 0), $fila['preferencial_manual'] ?? 0);
+            && self::esPreferencial((int) $fila['compras'], $fila['preferencial_manual'] ?? 0);
+    }
+
+    /** Precio unitario con el % de descuento aplicado (mismo redondeo que el navegador). */
+    public static function aplicarDescuento(float $precio, float $porcentaje): float
+    {
+        return round($precio * (100 - $porcentaje) / 100, 2);
     }
 
     /**
-     * Normaliza el % de descuento capturado a mano. Devuelve [porcentaje, error].
-     * Vacío o 0 = sin descuento. Solo se admite para clientes preferenciales.
+     * Valida en el servidor el descuento manual que llega del formulario.
+     * Vacío o 0 = sin descuento. Solo se permite a clientes preferenciales.
      *
-     * @param mixed $crudo valor recibido por POST
-     * @return array{0: float, 1: ?string}
+     * @param mixed $crudo valor enviado por el navegador
+     * @return array{0: float, 1: ?string} [porcentaje, mensaje de error]
      */
     public function validarDescuento($crudo, int $idCliente): array
     {
         $texto = trim((string) $crudo);
-
-        if ($texto === '' || ! is_numeric($texto) || (float) $texto == 0.0) {
-            return [0.0, $texto !== '' && ! is_numeric($texto) ? 'El descuento debe ser un número.' : null];
+        if ($texto === '') {
+            return [0.0, null];
+        }
+        if (! is_numeric($texto)) {
+            return [0.0, 'El descuento debe ser un número.'];
         }
 
-        $descuento = round((float) $texto, 2);
-
-        if ($descuento < 0 || $descuento > self::DESCUENTO_MAXIMO) {
+        $porcentaje = round((float) $texto, 2);
+        if ($porcentaje < 0 || $porcentaje > self::DESCUENTO_MAXIMO) {
             return [0.0, 'El descuento debe estar entre 0% y ' . self::DESCUENTO_MAXIMO . '%.'];
         }
-
+        if ($porcentaje === 0.0) {
+            return [0.0, null];
+        }
         if (! $this->esPreferencialPorId($idCliente)) {
             return [0.0, 'Solo los clientes preferenciales pueden recibir descuento.'];
         }
 
-        return [$descuento, null];
-    }
-
-    /** Aplica el % de descuento a un precio unitario (redondeo a centavos). */
-    public static function aplicarDescuento(float $precio, float $descuento): float
-    {
-        return round($precio * (100 - $descuento) / 100, 2);
+        return [$porcentaje, null];
     }
 
     /** Ajuste manual del administrador. */
@@ -164,7 +167,6 @@ class ClienteModel extends Model
 
         return $db->transStatus();
     }
-    protected $useAutoIncrement = true;
 
     public function getClientesConDireccion(string $busqueda = ''): static
     {
@@ -192,8 +194,30 @@ class ClienteModel extends Model
     {
         $db = \Config\Database::connect();
         $db->table('direccion')->insert(
-            array_merge(['id_cliente' => $idCliente], $direccion)
+            array_merge(['id_cliente' => $idCliente], $direccion, $this->coordenadasDe($direccion))
         );
+    }
+
+    /**
+     * Obtiene latitud/longitud de la dirección (para las rutas con Dijkstra).
+     * Si el servicio de mapas falla no se interrumpe el registro: queda NULL
+     * y se reintenta después desde el portal del repartidor.
+     */
+    private function coordenadasDe(array $direccion): array
+    {
+        $geo = null;
+        try {
+            $geo = \App\Libraries\Geocoder::geocodificar($direccion);
+        } catch (\Throwable $e) {
+            log_message('error', 'No se pudo geocodificar la dirección: ' . $e->getMessage());
+        }
+
+        return [
+            'latitud'        => $geo['lat'] ?? null,
+            'longitud'       => $geo['lng'] ?? null,
+            'geo_precision'  => $geo['precision'] ?? null,
+            'geo_intento_at' => date('Y-m-d H:i:s'),
+        ];
     }
 
 
@@ -208,17 +232,28 @@ class ClienteModel extends Model
     public function actualizarDireccion(int $idCliente, array $direccion): void
     {
         $db     = \Config\Database::connect();
-        $existe = $db->table('direccion')
+        $actual = $db->table('direccion')
                      ->where('id_cliente', $idCliente)
-                     ->countAllResults();
+                     ->get()
+                     ->getRowArray();
 
-        if ($existe > 0) {
+        if ($actual !== null) {
+            // Solo se vuelve a geocodificar si la dirección cambió o aún no tiene coordenadas.
+            $cambio = false;
+            foreach (['calle', 'numero', 'colonia', 'municipio', 'estado'] as $campo) {
+                if (trim((string) ($direccion[$campo] ?? '')) !== trim((string) ($actual[$campo] ?? ''))) {
+                    $cambio = true;
+                    break;
+                }
+            }
+            $extra = ($cambio || $actual['latitud'] === null) ? $this->coordenadasDe($direccion) : [];
+
             $db->table('direccion')
                ->where('id_cliente', $idCliente)
-               ->update($direccion);
+               ->update($direccion + $extra);
         } else {
             $db->table('direccion')->insert(
-                array_merge(['id_cliente' => $idCliente], $direccion)
+                array_merge(['id_cliente' => $idCliente], $direccion, $this->coordenadasDe($direccion))
             );
         }
     }

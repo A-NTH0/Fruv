@@ -4,6 +4,19 @@ namespace App\Libraries;
 
 final class AccountCredentials
 {
+    /** Campos a poner en blanco cuando cambia el correo de una cuenta: debe volver a verificarlo. */
+    public static function reiniciarVerificacion(): array
+    {
+        return [
+            'email_verified_at'               => null,
+            'email_verification_code_hash'    => null,
+            'email_verification_expires_at'   => null,
+            'email_verification_sent_at'      => null,
+            'email_verification_attempts'     => 0,
+            'email_verification_locked_until' => null,
+        ];
+    }
+
     public static function generateVerificationCode(): string
     {
         return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
