@@ -110,7 +110,7 @@ class RepartidoresController extends BaseController
         ));
 
         $filas = $db->query("
-            SELECT p.id_pedido,
+            SELECT p.id_pedido, p.id_repartidor,
                    c.nombre, c.ap_paterno, c.ap_materno,
                    d.id_direccion, d.calle, d.numero, d.colonia, d.municipio, d.estado AS dir_estado,
                    d.latitud, d.longitud, d.geo_intento_at,
@@ -124,31 +124,41 @@ class RepartidoresController extends BaseController
             INNER JOIN cliente c ON c.id_cliente = p.id_cliente1
             LEFT JOIN direccion d ON d.id_cliente = c.id_cliente
             WHERE p.id_repartidor = ?
+               OR (? = 1 AND p.id_repartidor IS NULL)
             ORDER BY p.id_pedido ASC, (d.latitud IS NULL) ASC, d.id_direccion ASC
-        ", [$idRepartidor])->getResultArray();
+        ", [$idRepartidor, $ids ? 1 : 0])->getResultArray();
 
         // Un registro por pedido, solo los que siguen activos.
+        // Un registro por pedido. Los míos: confirmados o en tránsito.
+        // Los que nadie ha tomado (solo en modo recorrido): únicamente confirmados.
         $unicos = [];
         foreach ($filas as $f) {
-            $id = (int) $f['id_pedido'];
-            if (isset($unicos[$id]) || ! in_array($f['estado_logistico'], ['confirmado', 'en_transito'], true)) {
+            $id      = (int) $f['id_pedido'];
+            $propio  = (int) $f['id_repartidor'] === $idRepartidor;
+            $validos = $propio ? ['confirmado', 'en_transito'] : ['confirmado'];
+            if (isset($unicos[$id]) || ! in_array($f['estado_logistico'], $validos, true)) {
                 continue;
             }
-            $unicos[$id] = $f;
+            $f['disponible'] = ! $propio;
+            $unicos[$id]     = $f;
         }
 
         // Los pedidos elegidos se geocodifican primero.
+        // Orden: elegidos, luego los míos, luego los sin asignar.
         if ($ids) {
-            uksort($unicos, static fn ($a, $b) => (int) in_array($b, $ids, true) <=> (int) in_array($a, $ids, true));
+            $rango = static fn ($id) => in_array($id, $ids, true) ? 0 : ($unicos[$id]['disponible'] ? 2 : 1);
+            uksort($unicos, static fn ($a, $b) => $rango($a) <=> $rango($b));
         }
 
-        // Direcciones sin coordenadas: se geocodifican ahora (máx. 3 por consulta) y se guardan.
+        // Direcciones sin coordenadas: se geocodifican ahora (máx. 2 por consulta) y se guardan.
         $geocodificadas = 0;
         foreach ($unicos as $id => $f) {
-            if ($f['id_direccion'] === null || $f['latitud'] !== null || $geocodificadas >= 3) {
+            if ($f['id_direccion'] === null || ($f['latitud'] !== null && $f['longitud'] !== null) || $geocodificadas >= 2) {
                 continue;
             }
-            $reciente = $f['geo_intento_at'] !== null && strtotime($f['geo_intento_at']) > time() - 86400;
+            // En modo recorrido (pedidos elegidos) se reintenta siempre; en el panel, máx. 1 vez al día.
+            $elegido  = in_array($id, $ids, true);
+            $reciente = ! $elegido && $f['geo_intento_at'] !== null && strtotime($f['geo_intento_at']) > time() - 86400;
             if ($reciente) {
                 continue; // ya se intentó hoy y falló
             }
@@ -187,6 +197,7 @@ class RepartidoresController extends BaseController
                 'cliente_nombre' => trim($f['nombre'] . ' ' . $f['ap_paterno']),
                 'direccion'      => $partes ? implode(', ', $partes) : 'Dirección sin confirmar',
                 'estado'         => $f['estado_logistico'],
+                'disponible'     => (bool) $f['disponible'],
                 'lat'            => $f['latitud'] !== null ? (float) $f['latitud'] : null,
                 'lng'            => $f['longitud'] !== null ? (float) $f['longitud'] : null,
             ];

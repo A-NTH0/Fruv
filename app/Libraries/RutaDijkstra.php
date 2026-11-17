@@ -30,6 +30,7 @@ class RutaDijkstra
     public const VECINOS_K        = 3;
     public const MAX_EXACTO       = 8;
     public const MAX_PARADAS_GOOGLE = 10; // destino + 9 waypoints
+    public const CERCA_PARADA_KM  = 1.5;   // un pedido a <= esto de tu ubicación o de una parada se ofrece
 
     /** Distancia en km entre dos puntos ['lat'=>, 'lng'=>]. */
     public static function haversine(array $a, array $b): float
@@ -177,11 +178,11 @@ class RutaDijkstra
                 }
             }
             $distParada = INF;
-            for ($k = 1, $m = count($puntos); $k < $m; $k++) {
+            for ($k = 0, $m = count($puntos); $k < $m; $k++) {   // k = 0 → también cerca de tu ubicación
                 $distParada = min($distParada, self::haversine($puntos[$k], $c));
             }
 
-            if ($enCamino || $distParada <= 1.0) {
+            if ($enCamino || $distParada <= self::CERCA_PARADA_KM) {
                 $res[] = $c + [
                     'desvio_km'      => round($desvio, 2),
                     'dist_parada_km' => round($distParada, 2),

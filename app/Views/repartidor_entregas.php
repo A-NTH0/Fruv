@@ -9,7 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="<?= base_url('css/dashboard.css') ?>">
     <link rel="stylesheet" href="<?= base_url('css/cliente.css') ?>">
-    <link rel="stylesheet" href="<?= base_url('css/repartidor-entregas.css') ?>">
+    <link rel="stylesheet" href="<?= base_url('css/repartidor-entregas.css') ?>?v=<?= @filemtime(FCPATH . 'css/repartidor-entregas.css') ?: time() ?>">
 </head>
 <body class="bg-gray-50">
     <?= view('plantilla/menu') ?>
@@ -142,7 +142,7 @@
             'entregados'   => $entregados,
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE) ?>;
     </script>
-    <script src="<?= base_url('js/repartidor-entregas.js') ?>"></script>
-    <script src="<?= base_url('js/repartidor-ruta.js') ?>"></script>
+    <script src="<?= base_url('js/repartidor-entregas.js') ?>?v=<?= @filemtime(FCPATH . 'js/repartidor-entregas.js') ?: time() ?>"></script>
+    <script src="<?= base_url('js/repartidor-ruta.js') ?>?v=<?= @filemtime(FCPATH . 'js/repartidor-ruta.js') ?: time() ?>"></script>
 </body>
 </html>

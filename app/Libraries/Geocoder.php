@@ -15,6 +15,11 @@ class Geocoder
 {
     private const PLACEHOLDERS = ['', 'null', 'nnn'];
 
+    /** Municipios cuyo nombre corto no coincide con el de OpenStreetMap. */
+    private const ALIAS_MUNICIPIOS = [
+        'grajales' => 'Rafael Lara Grajales',
+    ];
+
     /** true si la última consulta falló por algo técnico (SSL, red, bloqueo), no porque no hubiera resultados. */
     private static bool $huboError = false;
 
@@ -44,20 +49,30 @@ class Geocoder
     {
         $calle     = self::limpio($dir['calle'] ?? '');
         $numero    = (int) ($dir['numero'] ?? 0) > 0 ? (string) (int) $dir['numero'] : '';
-        $colonia   = self::limpio($dir['colonia'] ?? '');
+        $colonia   = self::quitarPrefijoColonia(self::limpio($dir['colonia'] ?? ''));
         $municipio = self::limpio($dir['municipio'] ?? '');
         $estado    = self::limpio($dir['estado'] ?? '');
 
+        // Nombres con los que OpenStreetMap conoce al municipio (p. ej. "Grajales" = "Rafael Lara Grajales").
+        $municipios = array_values(array_unique(array_filter([$municipio, self::ALIAS_MUNICIPIOS[mb_strtolower($municipio)] ?? ''])));
+
         // De lo más exacto a lo más general; se detiene en la primera que responda.
         $intentos = [];
-        if ($calle !== '' && $municipio !== '') {
-            $intentos['calle'] = self::unir([trim($calle . ' ' . $numero), $colonia, $municipio, $estado, 'México']);
+        if ($calle !== '') {
+            foreach ($municipios ?: [''] as $m) {
+                $intentos['calle:' . $m] = self::unir([trim($calle . ' ' . $numero), $colonia, $m, $estado, 'México']);
+            }
+            if ($colonia !== '') {
+                $intentos['calle:colonia'] = self::unir([trim($calle . ' ' . $numero), $colonia, $estado, 'México']);
+            }
         }
-        if ($colonia !== '' && $municipio !== '') {
-            $intentos['colonia'] = self::unir([$colonia, $municipio, $estado, 'México']);
+        if ($colonia !== '') {
+            foreach ($municipios ?: [''] as $m) {
+                $intentos['colonia:' . $m] = self::unir([$colonia, $m, $estado, 'México']);
+            }
         }
-        if ($municipio !== '') {
-            $intentos['municipio'] = self::unir([$municipio, $estado, 'México']);
+        foreach ($municipios as $m) {
+            $intentos['municipio:' . $m] = self::unir([$m, $estado, 'México']);
         }
 
         self::$huboError = false;
@@ -78,7 +93,7 @@ class Geocoder
             }
 
             if ($punto !== null) {
-                return $punto + ['precision' => $precision];
+                return $punto + ['precision' => explode(':', $precision)[0]];
             }
         }
 
@@ -135,6 +150,12 @@ class Geocoder
         $v = trim((string) $valor);
 
         return in_array(strtolower($v), self::PLACEHOLDERS, true) ? '' : $v;
+    }
+
+    /** "Col. Centro" / "Colonia Centro" → "Centro" (el prefijo confunde al buscador). */
+    private static function quitarPrefijoColonia(string $c): string
+    {
+        return trim(preg_replace('/^(col\.?|colonia|fracc\.?|fraccionamiento|barrio)\s+/iu', '', $c));
     }
 
     private static function unir(array $partes): string

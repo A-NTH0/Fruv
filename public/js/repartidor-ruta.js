@@ -172,12 +172,14 @@
             const cercanos = (data.cercanos || []).map(c => `
                 <li class="flex items-center gap-3 py-2">
                     <div class="min-w-0 flex-1">
-                        <p class="text-sm font-bold text-gray-900">Pedido #${c.id_pedido} · ${esc(c.cliente_nombre)}</p>
-                        <p class="text-xs text-gray-600">${esc(c.direccion)}</p>
-                        <p class="text-[11px] font-semibold text-amber-700">A ${c.dist_parada_km} km de tu ruta · desvío ≈ ${c.desvio_km} km</p>
-                    </div>
-                    <button type="button" data-agregar="${c.id_pedido}"
-                            class="rounded-xl bg-amber-500 px-3 py-2 text-xs font-bold text-white hover:bg-amber-600">Agregar</button>
+                    <p class="text-sm font-bold text-gray-900">Pedido #${c.id_pedido} · ${esc(c.cliente_nombre)}
+                        ${c.disponible ? '<span class="ml-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">Sin asignar</span>' : ''}
+                    </p>
+                    <p class="text-xs text-gray-600">${esc(c.direccion)}</p>
+                    <p class="text-[11px] font-semibold text-amber-700">A ${c.dist_parada_km} km de tu ruta · desvío ≈ ${c.desvio_km} km</p>
+                </div>
+                <button type="button" data-agregar="${c.id_pedido}" data-disponible="${c.disponible ? 1 : 0}"
+                        class="rounded-xl bg-amber-500 px-3 py-2 text-xs font-bold text-white hover:bg-amber-600 disabled:opacity-50">${c.disponible ? 'Tomar y agregar' : 'Agregar'}</button>
                 </li>`).join('');
 
             cuerpo = `
@@ -215,16 +217,35 @@
         caja.innerHTML = cab + cuerpo;
         caja.querySelector('#rec-cerrar')?.addEventListener('click', cerrarRecorrido);
         caja.querySelector('#rec-ubicacion')?.addEventListener('click', () => { posicion = null; cargarRecorrido(); });
-        caja.querySelectorAll('[data-agregar]').forEach(b => b.addEventListener('click', () => {
-            recIds.push(Number(b.dataset.agregar));
-            cargarRecorrido();
-        }));
-        caja.querySelectorAll('[data-quitar]').forEach(b => b.addEventListener('click', () => {
-            recIds = recIds.filter(i => i !== Number(b.dataset.quitar));
+        caja.querySelectorAll('[data-agregar]').forEach(b => b.addEventListener('click', async () => {
+            const id = Number(b.dataset.agregar);
+            if (b.dataset.disponible === '1') {          // nadie lo ha tomado: primero se asigna a este repartidor
+                b.disabled = true;
+                if (!(await tomarPedidoRecorrido(id))) { b.disabled = false; return; }
+            }
+            recIds.push(id);
             cargarRecorrido();
         }));
     }
-
+    async function tomarPedidoRecorrido(idPedido) {
+        try {
+            const res = await fetch(BASE_URL + 'repartidores/tomar-pedido', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ id_pedido: idPedido })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                if (window.sincronizarPedidos) window.sincronizarPedidos(false);   // refresca las tarjetas de fondo
+                return true;
+            }
+            if (window.Swal) Swal.fire('Atención', data.mensaje || 'No se pudo tomar el pedido.', 'warning');
+            return false;
+        } catch (e) {
+            if (window.Swal) Swal.fire('Error', 'Error de conexión.', 'error');
+            return false;
+        }
+    }
     async function cargarRecorrido() {
         if (recCargando) return;
         recCargando = true;
