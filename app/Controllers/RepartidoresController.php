@@ -154,19 +154,17 @@ class RepartidoresController extends BaseController
             }
 
             $geocodificadas++;
-            $geo = Geocoder::geocodificar([
+            $campos = Geocoder::camposParaGuardar([
                 'calle' => $f['calle'], 'numero' => $f['numero'], 'colonia' => $f['colonia'],
                 'municipio' => $f['municipio'], 'estado' => $f['dir_estado'],
             ]);
-            $db->table('direccion')->where('id_direccion', $f['id_direccion'])->update([
-                'latitud'        => $geo['lat'] ?? null,
-                'longitud'       => $geo['lng'] ?? null,
-                'geo_precision'  => $geo['precision'] ?? null,
-                'geo_intento_at' => date('Y-m-d H:i:s'),
-            ]);
-            if ($geo !== null) {
-                $unicos[$id]['latitud']  = $geo['lat'];
-                $unicos[$id]['longitud'] = $geo['lng'];
+            $db->table('direccion')->where('id_direccion', $f['id_direccion'])->update($campos);
+            if ($campos['latitud'] !== null) {
+                $unicos[$id]['latitud']  = $campos['latitud'];
+                $unicos[$id]['longitud'] = $campos['longitud'];
+            }
+            if (Geocoder::huboError()) {
+                break; // el servicio no responde: no se hacen más intentos en esta consulta
             }
         }
 

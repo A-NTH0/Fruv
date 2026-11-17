@@ -1377,3 +1377,65 @@ main.main-content .ped-wrap .stats-grid .kpi-chip.is-active .kpi-dot {
     .np-btn-add { flex: 1 1 100%; }
     .np-btn-cancel { flex-basis: 6rem; }
 }
+
+/* ==========================================================================
+   Nuevo pedido (administrador) · versión compacta
+   Va al FINAL de pedidos.css: sobrescribe tamaños del bloque anterior sin tocarlo.
+   ========================================================================== */
+/* Por encima del menú superior (1001) y por debajo de SweetAlert (1060) */
+#modalNuevoPedido { z-index: 1040; }
+
+.np-modal.max-w-4xl { max-width: 42rem; max-height: calc(100vh - 2rem); }
+
+.np-head { gap: .7rem; padding: .7rem 1.1rem; }
+.np-head-icon { width: 2.1rem; height: 2.1rem; border-radius: .7rem; }
+.np-head-icon .w-5 { width: 1.05rem; height: 1.05rem; }
+.np-head-copy h2 { font-size: 1rem; }
+.np-head-copy p { font-size: .72rem; }
+
+.np-body { gap: .7rem; padding: .8rem 1.1rem; }
+.np-card { padding: .8rem .95rem; border-radius: .85rem; }
+.np-section-title { gap: .5rem; margin-bottom: .6rem; font-size: .85rem; }
+.np-step { width: 1.3rem; height: 1.3rem; font-size: .68rem; }
+
+.np-grid { gap: .55rem .75rem; }
+.np-modal .campo-label { margin-bottom: .15rem; font-size: .66rem; }
+.np-modal .campo, .np-modal .autocomplete-input { height: 2.25rem; padding: 0 .65rem; font-size: .85rem; border-radius: .6rem; }
+
+.np-discount { gap: .7rem; margin-top: .7rem; padding: .65rem .8rem; }
+.np-discount-icon { width: 1.8rem; height: 1.8rem; }
+.np-discount-info strong { font-size: .8rem; }
+.np-discount-info p { font-size: .72rem; }
+.np-discount-input { width: 8rem; }
+.np-suffix input { height: 2.25rem; font-size: .9rem; }
+
+.np-add { gap: .5rem; padding: .65rem; }
+.np-w-cant { width: 5rem; } .np-w-unidad { width: 6rem; } .np-w-precio { width: 6.5rem; }
+.np-btn-add { height: 2.25rem; padding: 0 .9rem; font-size: .8rem; }
+.np-hint { margin-top: .4rem; font-size: .68rem; }
+
+.np-table-wrap { margin-top: .6rem; max-height: 9.5rem; }
+.np-table { font-size: .8rem; }
+.np-table thead th { padding: .4rem .6rem; font-size: .62rem; }
+.np-table tbody td { padding: .4rem .6rem; }
+.np-empty { padding: 1rem !important; }
+.np-precio-linea { height: 1.9rem; width: 5.2rem; font-size: .8rem; }
+
+/* Pie: totales a la izquierda y botones a la derecha, en una sola fila */
+.np-footer { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .6rem 1rem; padding: .7rem 1.1rem .8rem; }
+.np-pay { grid-column: 1 / -1; padding: .55rem .8rem; }
+.np-totals { gap: .15rem; min-width: 11rem; }
+.np-row { font-size: .78rem; }
+.np-row-total { margin-top: .1rem; padding-top: .3rem; }
+.np-row-total dt { font-size: .85rem; }
+.np-row-total dd { font-size: 1.3rem; }
+.np-actions { gap: .5rem; }
+.np-btn-cancel, .np-btn-save { height: 2.4rem; padding: 0 1.1rem; font-size: .82rem; }
+.np-btn-cancel { flex: none; }
+.np-btn-save { flex: none; }
+
+@media (max-width: 720px) {
+    .np-footer { grid-template-columns: 1fr; }
+    .np-actions { width: 100%; }
+    .np-btn-save { flex: 1; }
+}

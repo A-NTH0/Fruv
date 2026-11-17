@@ -15,6 +15,30 @@ class Geocoder
 {
     private const PLACEHOLDERS = ['', 'null', 'nnn'];
 
+    /** true si la última consulta falló por algo técnico (SSL, red, bloqueo), no porque no hubiera resultados. */
+    private static bool $huboError = false;
+
+    public static function huboError(): bool
+    {
+        return self::$huboError;
+    }
+
+    /**
+     * Campos listos para guardar en `direccion`. Un fallo técnico NO cuenta como intento
+     * (geo_intento_at queda NULL) para que se vuelva a probar en cuanto se arregle.
+     */
+    public static function camposParaGuardar(array $dir): array
+    {
+        $geo = self::geocodificar($dir);
+
+        return [
+            'latitud'        => $geo['lat'] ?? null,
+            'longitud'       => $geo['lng'] ?? null,
+            'geo_precision'  => $geo['precision'] ?? null,
+            'geo_intento_at' => self::$huboError ? null : date('Y-m-d H:i:s'),
+        ];
+    }
+
     /** @return array{lat: float, lng: float, precision: string}|null */
     public static function geocodificar(array $dir): ?array
     {
@@ -36,6 +60,7 @@ class Geocoder
             $intentos['municipio'] = self::unir([$municipio, $estado, 'México']);
         }
 
+        self::$huboError = false;
         $primero = true;
         foreach ($intentos as $precision => $texto) {
             if (! $primero) {
@@ -47,6 +72,8 @@ class Geocoder
                 $punto = self::buscar($texto);
             } catch (\Throwable $e) {
                 log_message('error', 'Geocoder: ' . $e->getMessage());
+                self::$huboError = true;
+
                 return null;
             }
 
@@ -77,7 +104,7 @@ class Geocoder
                 'query' => ['address' => $texto, 'region' => 'mx', 'language' => 'es', 'key' => $apiKey],
             ]);
             if ($resp->getStatusCode() !== 200) {
-                return null;
+                throw new \RuntimeException('Google respondió HTTP ' . $resp->getStatusCode());
             }
             $json = json_decode((string) $resp->getBody(), true);
             $loc  = $json['results'][0]['geometry']['location'] ?? null;
@@ -94,7 +121,7 @@ class Geocoder
             ],
         ]);
         if ($resp->getStatusCode() !== 200) {
-            return null;
+            throw new \RuntimeException('Nominatim respondió HTTP ' . $resp->getStatusCode());
         }
         $json = json_decode((string) $resp->getBody(), true);
 

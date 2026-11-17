@@ -199,25 +199,13 @@ class ClienteModel extends Model
     }
 
     /**
-     * Obtiene latitud/longitud de la dirección (para las rutas con Dijkstra).
+     * Latitud/longitud de la dirección (para las rutas con Dijkstra).
      * Si el servicio de mapas falla no se interrumpe el registro: queda NULL
-     * y se reintenta después desde el portal del repartidor.
+     * y se reintenta después (portal del repartidor o `php spark direcciones:geocodificar`).
      */
     private function coordenadasDe(array $direccion): array
     {
-        $geo = null;
-        try {
-            $geo = \App\Libraries\Geocoder::geocodificar($direccion);
-        } catch (\Throwable $e) {
-            log_message('error', 'No se pudo geocodificar la dirección: ' . $e->getMessage());
-        }
-
-        return [
-            'latitud'        => $geo['lat'] ?? null,
-            'longitud'       => $geo['lng'] ?? null,
-            'geo_precision'  => $geo['precision'] ?? null,
-            'geo_intento_at' => date('Y-m-d H:i:s'),
-        ];
+        return \App\Libraries\Geocoder::camposParaGuardar($direccion);
     }
 
 
