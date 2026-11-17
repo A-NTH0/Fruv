@@ -53,6 +53,7 @@ $routes->get('repartidores/actualizaciones', 'RepartidoresController::actualizac
 $routes->get('repartidores/ruta', 'RepartidoresController::ruta');
 $routes->post('repartidores/cambiar-estado', 'RepartidoresController::cambiarEstado');
 $routes->post('repartidores/tomar-pedido', 'RepartidoresController::tomarPedido');
+$routes->get('repartidores/verificar-desvio', 'RepartidoresController::verificarDesvio');
 
 $routes->get('vendedores', 'VendedoresController::index');
 $routes->post('vendedores/guardar', 'VendedoresController::guardar');

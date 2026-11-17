@@ -17,8 +17,7 @@ use SplPriorityQueue;
  * 4. Con esa matriz se ordena la visita: exacto (permutaciones) si hay
  *    <= MAX_EXACTO paradas; vecino más cercano si hay más.
  *
- * Para usar distancias reales por calle basta cambiar el cálculo de $peso
- * en construirGrafo() (p. ej. con la Distance Matrix API de Google).
+ * Las distancias se estiman con las coordenadas disponibles; no representan una red vial real.
  */
 class RutaDijkstra
 {
@@ -29,7 +28,6 @@ class RutaDijkstra
     public const FACTOR_VIAL      = 1.3;
     public const VECINOS_K        = 3;
     public const MAX_EXACTO       = 8;
-    public const MAX_PARADAS_GOOGLE = 10; // destino + 9 waypoints
     public const CERCA_PARADA_KM  = 1.5;   // un pedido a <= esto de tu ubicación o de una parada se ofrece
 
     /** Distancia en km entre dos puntos ['lat'=>, 'lng'=>]. */
@@ -68,8 +66,6 @@ class RutaDijkstra
             'distancia_km'    => 0.0,
             'metodo'          => null,
             'sin_coordenadas' => $sinCoord,
-            'google_url'      => null,
-            'truncada'        => false,
         ];
 
         if (count($conCoord) < 2) {
@@ -140,7 +136,7 @@ class RutaDijkstra
             return [
                 'hay_ruta' => false, 'motivo' => 'No se pudo ubicar la dirección en el mapa.',
                 'origen' => $origen, 'paradas' => [], 'distancia_km' => 0.0, 'metodo' => null,
-                'sin_coordenadas' => $sinCoord, 'google_url' => null, 'truncada' => false,
+                'sin_coordenadas' => $sinCoord,
             ];
         }
 
@@ -237,8 +233,6 @@ class RutaDijkstra
             'distancia_km'    => round($total, 2),
             'metodo'          => $metodo,
             'sin_coordenadas' => $sinCoord,
-            'google_url'      => self::urlGoogleMaps($origen, $paradas),
-            'truncada'        => count($paradas) > self::MAX_PARADAS_GOOGLE,
         ];
     }
 
@@ -416,25 +410,60 @@ class RutaDijkstra
         return [$mejorOrden, min($mejor, $total), 'exacto'];
     }
 
-    // ───────────────────────── Google Maps ─────────────────────────
-
-    /** Enlace que abre la ruta ya ordenada en Google Maps (no requiere API key). */
-    private static function urlGoogleMaps(array $origen, array $paradas): string
+    /**
+     * Verifica si el repartidor se desvió de la ruta calculada.
+     *
+     * @param array $posicion  ['lat'=>float,'lng'=>float] posición GPS actual
+     * @param array $origen    punto de salida
+     * @param array $paradas   paradas ordenadas (cada una con lat, lng, id_pedido)
+     * @param float $umbralKm  distancia máxima a la ruta para estar "en ruta" (default 0.2 = 200 m)
+     * @param int $indiceParada índice de la siguiente parada pendiente
+     * @return array{en_ruta: bool, desvio_km: float, siguiente_parada: ?array, distancia_siguiente_km: float}
+     */
+    public static function verificarDesvio(
+        array $posicion,
+        array $origen,
+        array $paradas,
+        float $umbralKm = 0.2,
+        int $indiceParada = 0
+    ): array
     {
-        $paradas = array_slice($paradas, 0, self::MAX_PARADAS_GOOGLE);
-        $punto   = static fn (array $p): string => $p['lat'] . ',' . $p['lng'];
-        $destino = array_pop($paradas);
-
-        $query = [
-            'api'         => 1,
-            'origin'      => $origen['lat'] . ',' . $origen['lng'],
-            'destination' => $punto($destino),
-            'travelmode'  => 'driving',
-        ];
-        if ($paradas) {
-            $query['waypoints'] = implode('|', array_map($punto, $paradas));
+        if (! $paradas) {
+            return ['en_ruta' => true, 'desvio_km' => 0.0, 'siguiente_parada' => $paradas[0] ?? null, 'distancia_siguiente_km' => 0.0];
         }
 
-        return 'https://www.google.com/maps/dir/?' . http_build_query($query);
+        $indiceParada = max(0, min($indiceParada, count($paradas) - 1));
+        $siguienteParada = $paradas[$indiceParada];
+        $inicioTramo = $indiceParada === 0 ? $origen : $paradas[$indiceParada - 1];
+        $minDist = self::distanciaPuntoASegmento($posicion, $inicioTramo, $siguienteParada);
+        $distanciaSiguiente = self::haversine($posicion, $siguienteParada);
+
+        return [
+            'en_ruta'                => $minDist <= $umbralKm,
+            'desvio_km'              => round($minDist, 3),
+            'siguiente_parada'       => $siguienteParada,
+            'distancia_siguiente_km' => round($distanciaSiguiente, 2),
+        ];
+    }
+
+    /**
+     * Distancia perpendicular (Haversine) de un punto P al segmento A-B.
+     */
+    private static function distanciaPuntoASegmento(array $p, array $a, array $b): float
+    {
+        $dAB = self::haversine($a, $b);
+        if ($dAB < 0.001) return self::haversine($p, $a);
+
+        $dAP = self::haversine($a, $p);
+        $dBP = self::haversine($b, $p);
+
+        // Proyección con ley de cosenos
+        $t = ($dAP * $dAP + $dAB * $dAB - $dBP * $dBP) / (2 * $dAB * $dAB);
+        $t = max(0.0, min(1.0, $t));
+
+        return self::haversine($p, [
+            'lat' => $a['lat'] + $t * ($b['lat'] - $a['lat']),
+            'lng' => $a['lng'] + $t * ($b['lng'] - $a['lng']),
+        ]);
     }
 }

@@ -40,6 +40,34 @@ vence en 10 minutos; después de verificarlo, los accesos siguientes solo
 requieren correo y contraseña. Tras configurar las credenciales SMTP de correo
 en `.env`, aplica los cambios de esquema con `php spark migrate`.
 
+## Mapa y navegación del repartidor
+
+En **Mis entregas**, abre un pedido asignado y pulsa **Iniciar recorrido** para
+ver el mapa vial, las instrucciones por tramo y el aviso de desvío. **Iniciar
+Ruta (En camino)** solo cambia el estado del pedido; no abre el mapa.
+
+El mapa del recorrido usa Leaflet y los mosaicos de OpenStreetMap, sin clave de
+Google. Fruv conserva el orden de paradas que calcula y pide a OSRM una sola
+ruta vial para ese orden (`alternatives=false`). El mapa marca el origen, las
+paradas seleccionadas y los pedidos cercanos —asignados y disponibles— que no
+están incluidos en la ruta. Los pedidos cercanos solo se agregan al recorrido
+cuando el repartidor los elige. El mapa permite arrastrar, acercar con rueda o
+gestos táctiles, centrar en la ubicación actual y abrirse en pantalla completa.
+
+La versión actual consulta el servicio público de demostración de OSRM, por lo
+que envía las coordenadas del origen y de las paradas seleccionadas a ese
+servicio. No requiere clave ni cobra por solicitud, pero no ofrece SLA y no se
+debe tratar como servicio de producción de alta disponibilidad. Los mosaicos
+de OpenStreetMap requieren atribución visible y deben usarse respetando su
+política de uso.
+
+OSRM devuelve una ruta única de conducción según su perfil; `alternatives=false`
+evita mostrar rutas alternativas. Esto no garantiza la ruta de menor distancia
+matemática: el orden de las paradas procede del Dijkstra aproximado de Fruv y
+el perfil público de OSRM prioriza su propio costo de ruta. Para optimizar
+distancia real de calle habría que alojar y configurar un motor de rutas con un
+perfil de distancia, además de mantener sus datos viales.
+
 ## Important Change with index.php
 
 `index.php` is no longer in the root of the project! It has been moved inside the *public* folder,

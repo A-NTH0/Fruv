@@ -225,11 +225,20 @@ class RepartidoresController extends BaseController
             ]);
         }
 
+        $plan = RutaDijkstra::planificar($origen, $pedidos);
+        // Siempre ofrecer pedidos cercanos (de cualquier usuario), no solo en modo recorrido.
+        $misPedidos  = array_values(array_filter($pedidos, static fn ($p) => ! $p['disponible']));
+        $otroPedidos = array_values(array_filter($pedidos, static fn ($p) => $p['disponible']));
+        $cercanos    = ($plan['hay_ruta'] && $otroPedidos)
+            ? RutaDijkstra::cercanos($origen, $plan['paradas'], $otroPedidos)
+            : [];
+
         return $this->response->setJSON([
-            'ok'        => true,
+            'ok'         => true,
             'origen_gps' => $conGps,
-            'ruta'      => RutaDijkstra::planificar($origen, $pedidos),
-            'timestamp' => date('H:i:s'),
+            'ruta'       => $plan,
+            'cercanos'   => $cercanos,
+            'timestamp'  => date('H:i:s'),
         ]);
     }
 
@@ -265,9 +274,19 @@ class RepartidoresController extends BaseController
             return $this->response->setJSON(['ok' => false, 'mensaje' => 'Solo se pueden tomar pedidos confirmados.']);
         }
 
-        $db->table('pedido')
-            ->where('id_pedido', $idPedido)
-            ->update(['id_repartidor' => $idRepartidor]);
+        if (empty($pedido['id_repartidor'])) {
+            $db->table('pedido')
+                ->where('id_pedido', $idPedido)
+                ->where('id_repartidor', null)
+                ->update(['id_repartidor' => $idRepartidor]);
+
+            if ($db->affectedRows() !== 1) {
+                return $this->response->setJSON([
+                    'ok'      => false,
+                    'mensaje' => 'Este pedido ya fue tomado por otro repartidor. Actualiza la lista e inténtalo con otro.',
+                ]);
+            }
+        }
 
         return $this->response->setJSON([
             'ok'      => true,
@@ -547,6 +566,92 @@ class RepartidoresController extends BaseController
             'stats'       => $stats,
             'firma'       => $firma,
         ];
+    }
+
+    /**
+     * Verifica si el repartidor se desvió de su ruta activa.
+     * GET /repartidores/verificar-desvio?lat=&lng=&pedidos=12,15
+     */
+    public function verificarDesvio()
+    {
+        if (session()->get('auth_role') !== 'repartidor') {
+            return $this->response->setStatusCode(403)->setJSON(['ok' => false]);
+        }
+
+        $lat = filter_var($this->request->getGet('lat'), FILTER_VALIDATE_FLOAT);
+        $lng = filter_var($this->request->getGet('lng'), FILTER_VALIDATE_FLOAT);
+        if ($lat === false || $lng === false || abs($lat) > 90 || abs($lng) > 180) {
+            return $this->response->setJSON(['ok' => false, 'mensaje' => 'Coordenadas no válidas.']);
+        }
+
+        $posicion = ['lat' => (float) $lat, 'lng' => (float) $lng];
+        $ids = array_values(array_filter(
+            array_map('intval', explode(',', (string) $this->request->getGet('pedidos'))),
+            static fn ($i) => $i > 0
+        ));
+        $ids = array_values(array_unique($ids));
+
+        if (! $ids) {
+            return $this->response->setJSON(['ok' => false, 'mensaje' => 'Sin paradas.']);
+        }
+
+        $origenLat = filter_var($this->request->getGet('origen_lat'), FILTER_VALIDATE_FLOAT);
+        $origenLng = filter_var($this->request->getGet('origen_lng'), FILTER_VALIDATE_FLOAT);
+        if ($origenLat === false || $origenLng === false || abs($origenLat) > 90 || abs($origenLng) > 180) {
+            return $this->response->setJSON(['ok' => false, 'mensaje' => 'Origen de ruta no válido.']);
+        }
+        $indiceParada = filter_var($this->request->getGet('progreso'), FILTER_VALIDATE_INT);
+        if ($indiceParada === false || $indiceParada < 0 || $indiceParada >= count($ids)) {
+            return $this->response->setJSON(['ok' => false, 'mensaje' => 'Progreso de ruta no válido.']);
+        }
+
+        $idRepartidor = (int) session()->get('repartidor_id');
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $filas = db_connect()->query("
+            SELECT p.id_pedido, d.latitud, d.longitud,
+                   (
+                       SELECT s.estado FROM status s
+                       WHERE s.id_pedido2 = p.id_pedido
+                         AND s.estado IN ('pedido','confirmado','en_transito','entregado','cancelado')
+                       ORDER BY s.id_status DESC LIMIT 1
+                   ) AS estado_logistico
+            FROM pedido p
+            INNER JOIN cliente c ON c.id_cliente = p.id_cliente1
+            LEFT JOIN direccion d ON d.id_cliente = c.id_cliente
+            WHERE p.id_repartidor = ?
+              AND p.id_pedido IN ($placeholders)
+            ORDER BY p.id_pedido ASC, (d.latitud IS NULL) ASC, d.id_direccion ASC
+        ", array_merge([$idRepartidor], $ids))->getResultArray();
+
+        $porPedido = [];
+        foreach ($filas as $fila) {
+            $id = (int) $fila['id_pedido'];
+            if (! isset($porPedido[$id]) && in_array($fila['estado_logistico'], ['confirmado', 'en_transito'], true)
+                && $fila['latitud'] !== null && $fila['longitud'] !== null) {
+                $porPedido[$id] = [
+                    'id_pedido' => $id,
+                    'lat'       => (float) $fila['latitud'],
+                    'lng'       => (float) $fila['longitud'],
+                ];
+            }
+        }
+
+        $paradas = [];
+        foreach ($ids as $id) {
+            if (! isset($porPedido[$id])) {
+                return $this->response->setStatusCode(403)->setJSON([
+                    'ok'      => false,
+                    'mensaje' => 'La ruta contiene pedidos no asignados a tu cuenta o sin ubicación.',
+                ]);
+            }
+            $paradas[] = $porPedido[$id];
+        }
+
+        $origen = ['lat' => (float) $origenLat, 'lng' => (float) $origenLng];
+
+        return $this->response->setJSON([
+            'ok' => true,
+        ] + RutaDijkstra::verificarDesvio($posicion, $origen, $paradas, 0.2, $indiceParada));
     }
 
     public function guardar()

@@ -78,9 +78,6 @@ function crearTarjetaPedido(p, tipoSeccion) {
         ? `<span class="badge badge-amber">A Crédito · Saldo: ${formatoMoneda(p.deuda_restante)}</span>`
         : `<span class="badge badge-green">De Contado · ${formatoMoneda(p.total)}</span>`;
 
-    const linkMaps = p.tiene_mapa
-        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.direccion)}`
-        : null;
     const linkWA = armarLinkWhatsApp(p);
 
     const prodsHtml = (p.productos || []).map(pr => `
@@ -191,13 +188,6 @@ function crearTarjetaPedido(p, tipoSeccion) {
                         class="rep-action-btn bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
                     <i data-lucide="navigation" class="w-4 h-4"></i> Iniciar recorrido
                 </button>
-            ` : ''}
-
-            ${linkMaps ? `
-                <a href="${linkMaps}" target="_blank" rel="noopener"
-                   class="rep-action-btn bg-white hover:bg-gray-50 text-gray-800 border border-gray-300">
-                    <i data-lucide="map" class="w-4 h-4 text-rose-600"></i> Ver en Mapa
-                </a>
             ` : ''}
 
             ${p.cliente_telefono ? `
