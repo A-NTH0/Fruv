@@ -29,6 +29,7 @@ class RutaDijkstra
     public const VECINOS_K        = 3;
     public const MAX_EXACTO       = 8;
     public const CERCA_PARADA_KM  = 1.5;   // un pedido a <= esto de tu ubicación o de una parada se ofrece
+    public const MAX_PARADAS_GOOGLE = 10;  // Google Maps: destino + 9 paradas intermedias
 
     /** Distancia en km entre dos puntos ['lat'=>, 'lng'=>]. */
     public static function haversine(array $a, array $b): float
@@ -120,7 +121,7 @@ class RutaDijkstra
     /**
      * Ruta (Dijkstra) para pedidos que el repartidor eligió; sin condiciones de zona.
      */
-    public static function planificarSeleccion(array $origen, array $pedidos): array
+    public static function planificarSeleccion(array $origen, array $pedidos, ?callable $matriz = null): array
     {
         $conCoord = [];
         $sinCoord = [];
@@ -143,39 +144,48 @@ class RutaDijkstra
         $motivos = array_fill_keys(array_keys($conCoord), 'seleccion');
         $texto   = 'Recorrido de ' . count($conCoord) . (count($conCoord) === 1 ? ' pedido.' : ' pedidos.');
 
-        return self::construir($origen, $conCoord, $motivos, $sinCoord, $texto);
+        return self::construir($origen, $conCoord, $motivos, $sinCoord, $texto, $matriz);
     }
 
     /**
      * Pedidos que quedan cerca de la ruta ya trazada (candidatos a agregar).
-     * "Cerca" = desvío pequeño en algún tramo, o a <= 1 km de alguna parada.
+     * "Cerca" = desvío pequeño en algún tramo, o a <= CERCA_PARADA_KM de alguna parada.
+     *
+     * $km (opcional): distancias por calle (km) entre [salida, paradas en orden de visita..., candidatos...],
+     * en ese orden (los candidatos con la misma posición que en $candidatos). Sin $km se usa línea recta.
      */
-    public static function cercanos(array $origen, array $paradas, array $candidatos): array
+    public static function cercanos(array $origen, array $paradas, array $candidatos, ?array $km = null): array
     {
         $puntos = [['lat' => $origen['lat'], 'lng' => $origen['lng']]];
         foreach ($paradas as $p) {
             $puntos[] = ['lat' => $p['lat'], 'lng' => $p['lng']];
         }
+        $P = count($puntos);
 
         $res = [];
-        foreach ($candidatos as $c) {
+        foreach (array_values($candidatos) as $k => $c) {
             if (! isset($c['lat'], $c['lng'])) {
                 continue;
             }
+            // d(punto i → candidato) y d(candidato → punto i)
+            $aC = static fn (int $i): float => $km !== null ? (float) $km[$i][$P + $k] : self::haversine($puntos[$i], $c);
+            $cA = static fn (int $i): float => $km !== null ? (float) $km[$P + $k][$i] : self::haversine($c, $puntos[$i]);
+            $ab = static fn (int $i): float => $km !== null ? (float) $km[$i][$i + 1] : self::haversine($puntos[$i], $puntos[$i + 1]);
+
             $desvio   = INF;
             $enCamino = false;
-            for ($i = 0, $m = count($puntos) - 1; $i < $m; $i++) {
-                $ab     = self::haversine($puntos[$i], $puntos[$i + 1]);
-                $desv   = self::haversine($puntos[$i], $c) + self::haversine($c, $puntos[$i + 1]) - $ab;
-                $limite = max(self::DESVIO_MAX_KM, self::DESVIO_MAX_PCT * $ab);
+            for ($i = 0, $m = $P - 1; $i < $m; $i++) {
+                $largo  = $ab($i);
+                $desv   = $aC($i) + $cA($i + 1) - $largo;
+                $limite = max(self::DESVIO_MAX_KM, self::DESVIO_MAX_PCT * $largo);
                 $desvio = min($desvio, $desv);
                 if ($desv <= $limite) {
                     $enCamino = true;
                 }
             }
             $distParada = INF;
-            for ($k = 0, $m = count($puntos); $k < $m; $k++) {   // k = 0 → también cerca de tu ubicación
-                $distParada = min($distParada, self::haversine($puntos[$k], $c));
+            for ($i = 0; $i < $P; $i++) {   // i = 0 → también cerca de tu ubicación
+                $distParada = min($distParada, $aC($i), $cA($i));
             }
 
             if ($enCamino || $distParada <= self::CERCA_PARADA_KM) {
@@ -191,7 +201,7 @@ class RutaDijkstra
     }
 
     /** Grafo + Dijkstra + orden de visita para las paradas elegidas. */
-    private static function construir(array $origen, array $conCoord, array $motivos, array $sinCoord, string $textoMotivo): array
+    private static function construir(array $origen, array $conCoord, array $motivos, array $sinCoord, string $textoMotivo, ?callable $matriz = null): array
     {
         $indices = array_keys($motivos);
         sort($indices);
@@ -201,7 +211,25 @@ class RutaDijkstra
             $nodos[] = ['lat' => $conCoord[$i]['lat'], 'lng' => $conCoord[$i]['lng']];
         }
 
-        $grafo = self::construirGrafo($nodos);
+        // Con matriz de calles (OSRM): grafo completo con esas distancias. Sin ella: línea recta × FACTOR_VIAL.
+        $grafo  = null;
+        $fuente = 'recta';
+        if ($matriz !== null) {
+            $m = $matriz($nodos);
+            $n = count($nodos);
+            if (is_array($m) && isset($m['km']) && count($m['km']) === $n) {
+                $grafo = array_fill(0, $n, []);
+                for ($i = 0; $i < $n; $i++) {
+                    for ($j = 0; $j < $n; $j++) {
+                        if ($i !== $j && isset($m['km'][$i][$j])) {
+                            $grafo[$i][$j] = (float) $m['km'][$i][$j];
+                        }
+                    }
+                }
+                $fuente = 'calles';
+            }
+        }
+        $grafo ??= self::construirGrafo($nodos);
         $D     = [];
         for ($i = 0, $m = count($nodos); $i < $m; $i++) {
             $D[$i] = self::dijkstra($grafo, $i)['dist'];
@@ -233,7 +261,38 @@ class RutaDijkstra
             'distancia_km'    => round($total, 2),
             'metodo'          => $metodo,
             'sin_coordenadas' => $sinCoord,
+            'fuente'          => $fuente,   // 'calles' (OSRM) | 'recta' (aproximación)
         ];
+    }
+
+    /** Zona horaria del negocio (la app corre en UTC; los horarios de entrega son locales). */
+    public static function zona(): \DateTimeZone
+    {
+        try {
+            return new \DateTimeZone((string) env('fruver.timezone', 'America/Mexico_City'));
+        } catch (\Throwable $e) {
+            return new \DateTimeZone('America/Mexico_City');
+        }
+    }
+
+    /** Enlace que abre la ruta ya ordenada en Google Maps (no requiere API key). */
+    public static function urlGoogleMaps(array $origen, array $paradas): string
+    {
+        $paradas = array_slice($paradas, 0, self::MAX_PARADAS_GOOGLE);
+        $punto   = static fn (array $p): string => $p['lat'] . ',' . $p['lng'];
+        $destino = array_pop($paradas);
+
+        $query = [
+            'api'         => 1,
+            'origin'      => $origen['lat'] . ',' . $origen['lng'],
+            'destination' => $punto($destino),
+            'travelmode'  => 'driving',
+        ];
+        if ($paradas) {
+            $query['waypoints'] = implode('|', array_map($punto, $paradas));
+        }
+
+        return 'https://www.google.com/maps/dir/?' . http_build_query($query);
     }
 
     // ───────────────────────── Zonas ─────────────────────────

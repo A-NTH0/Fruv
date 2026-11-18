@@ -129,3 +129,19 @@
 @media (prefers-reduced-motion: reduce) {
     .animate-ping { animation: none; }
 }
+
+
+/* ── Mapa fijo de entregas (Leaflet) ── */
+.ruta-mapa { height: 380px; border-radius: 0.75rem; overflow: hidden; border: 1px solid #fecdd3; position: relative; isolation: isolate; }
+@media (max-width: 640px) { .ruta-mapa { height: 300px; } }
+.ruta-mapa.hidden { display: none; }
+.ruta-pin { background: transparent; border: 0; }
+.ruta-pin span { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9999px;
+    background: #e11d48; color: #fff; font-weight: 800; font-size: 13px; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+.ruta-pin--aprox span { background: #d97706; }
+.ruta-pin--tarde span { background: #7f1d1d; }
+.ruta-pin--tienda span { background: #0f766e; font-size: 15px; }
+.ruta-pin--yo span { background: #2563eb; font-size: 14px; animation: ruta-pulso 1.8s ease-out infinite; }
+.ruta-pin--paso span { background: #059669; font-size: 18px; }
+.ruta-pin--otro span { width: 18px; height: 18px; background: #9ca3af; border-width: 2px; font-size: 0; }
+@keyframes ruta-pulso { 0% { box-shadow: 0 0 0 0 rgba(37,99,235,.55); } 100% { box-shadow: 0 0 0 14px rgba(37,99,235,0); } }

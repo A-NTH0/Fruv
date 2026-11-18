@@ -80,6 +80,16 @@ function crearTarjetaPedido(p, tipoSeccion) {
 
     const linkWA = armarLinkWhatsApp(p);
 
+    // Posición en la ruta más rápida (la calcula repartidor-mapa.js); sin ruta, no hay número.
+    const infoOrden = (window.ORDEN_RUTA || {})[p.id_pedido] || null;
+
+    // Con coordenadas guardadas se navega a la latitud/longitud exacta y se puede ubicar en el mapa fijo.
+    const tieneCoord = p.lat != null && p.lng != null;
+    const linkComoLlegar = tieneCoord
+        ? `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=driving`
+        : null;
+    const enMapa = tipoSeccion === 'asignados' && tieneCoord && ['confirmado', 'en_transito'].includes(p.estado);
+
     const prodsHtml = (p.productos || []).map(pr => `
         <li>
             <span><strong>${pr.cantidad} ${escaparHtml(pr.unidad_venta)}</strong> · ${escaparHtml(pr.nombre)}</span>
@@ -127,11 +137,13 @@ function crearTarjetaPedido(p, tipoSeccion) {
         <div class="pedido-top">
             <div>
                 <div class="flex items-center gap-2 flex-wrap">
+                    ${infoOrden && tipoSeccion === 'asignados' ? `<span class="inline-flex items-center rounded-full bg-rose-600 px-2.5 py-0.5 text-xs font-extrabold text-white">Parada ${infoOrden.orden} de ${infoOrden.total}</span>` : ''}
                     <h2>Pedido #${p.id_pedido}</h2>
                     ${badgeEstado}
                     ${badgePago}
                 </div>
                 <p class="mt-1">Cliente: <strong class="text-gray-800">${escaparHtml(p.cliente_nombre)}</strong> · Registrado: ${escaparHtml(p.fecha)}</p>
+                ${infoOrden && tipoSeccion === 'asignados' ? `<p class="mt-1 text-xs font-semibold text-rose-700">Ruta más rápida desde tu ubicación · llegada ≈ ${escaparHtml(infoOrden.llegada)}${infoOrden.limite ? ` · prometido ${escaparHtml(infoOrden.limite)}` : ''}${infoOrden.tarde_min > 0 ? ` · ≈ ${infoOrden.tarde_min} min tarde` : ''}</p>` : ''}
             </div>
             <div class="pedido-right">
                 <div class="text-right">
@@ -183,11 +195,18 @@ function crearTarjetaPedido(p, tipoSeccion) {
                 </a>
             ` : ''}
 
-            ${(tipoSeccion === 'asignados' && p.tiene_mapa && (p.estado === 'confirmado' || p.estado === 'en_transito')) ? `
-                <button type="button" onclick="iniciarRecorrido(${p.id_pedido})"
-                        class="rep-action-btn bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
-                    <i data-lucide="navigation" class="w-4 h-4"></i> Iniciar recorrido
+            ${enMapa ? `
+                <button type="button" onclick="rutaEnfocarPedido(${p.id_pedido})"
+                        class="rep-action-btn bg-white hover:bg-gray-50 text-gray-800 border border-gray-300">
+                    <i data-lucide="route" class="w-4 h-4 text-rose-600"></i> Ver en mapa de ruta
                 </button>
+            ` : ''}
+
+            ${linkComoLlegar ? `
+                <a href="${linkComoLlegar}" target="_blank" rel="noopener"
+                   class="rep-action-btn bg-white hover:bg-gray-50 text-gray-800 border border-gray-300">
+                    <i data-lucide="map" class="w-4 h-4 text-rose-600"></i> Cómo llegar
+                </a>
             ` : ''}
 
             ${p.cliente_telefono ? `
@@ -213,7 +232,17 @@ function filtrarLista(lista, texto) {
 function renderizarVistas() {
     const q = (document.getElementById('inputFiltroRep')?.value || '').trim();
 
-    const asigFiltrados = filtrarLista(DATA_ASIGNADOS, q);
+    // Mis entregas: primero en el orden de la ruta más rápida (no por orden de asignación); las que
+    // aún no tienen ubicación en el mapa van al final, en su orden de siempre.
+    const orden = window.ORDEN_RUTA || {};
+    const asigFiltrados = filtrarLista(DATA_ASIGNADOS, q)
+        .map((p, i) => ({ p, i }))
+        .sort((a, b) => {
+            const oa = orden[a.p.id_pedido]?.orden ?? Infinity;
+            const ob = orden[b.p.id_pedido]?.orden ?? Infinity;
+            return (oa === ob) ? a.i - b.i : oa - ob;
+        })
+        .map(x => x.p);
     const dispFiltrados = filtrarLista(DATA_DISPONIBLES, q);
     const histFiltrados = filtrarLista(DATA_ENTREGADOS, q);
 
@@ -264,6 +293,8 @@ function cambiarVistaRep(vista) {
     });
     document.getElementById('buscador-wrapper')?.classList.toggle('hidden', vista === 'perfil');
     document.getElementById('panel-ruta')?.classList.toggle('hidden', vista !== 'asignados');
+    document.getElementById('panel-mapa')?.classList.toggle('hidden', vista !== 'asignados');
+    if (vista === 'asignados' && window.rutaRefrescarMapa) window.rutaRefrescarMapa();   // Leaflet recalcula su tamaño al mostrarse
     // Móvil: mantener visible la opción activa del menú horizontal (RNF-07)
     document.getElementById('nav-rep-' + vista)?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
 }

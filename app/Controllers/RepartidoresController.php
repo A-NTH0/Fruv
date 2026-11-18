@@ -3,11 +3,17 @@ namespace App\Controllers;
 
 use App\Libraries\AccountCredentials;
 use App\Libraries\Geocoder;
+use App\Libraries\Osrm;
 use App\Libraries\RutaDijkstra;
 use App\Models\RepartidorModel;
 
 class RepartidoresController extends BaseController
 {
+    private const MAX_PARADAS_MAPA    = 25;    // tope de paradas por cálculo (límite del OSRM público)
+    private const MAX_CANDIDATOS_MAPA = 60;    // pedidos sin asignar que se evalúan por calle
+    private const TOPE_MATRIZ         = 100;   // máx. de puntos en una consulta "table" de OSRM
+    private const VELOCIDAD_KMH       = 28.0;  // respaldo en línea recta si OSRM no responde
+
     public function index()
     {
         if (session()->get('auth_role') === 'repartidor') {
@@ -113,7 +119,8 @@ class RepartidoresController extends BaseController
             SELECT p.id_pedido, p.id_repartidor,
                    c.nombre, c.ap_paterno, c.ap_materno,
                    d.id_direccion, d.calle, d.numero, d.colonia, d.municipio, d.estado AS dir_estado,
-                   d.latitud, d.longitud, d.geo_intento_at,
+                   d.latitud, d.longitud, d.geo_precision, d.geo_intento_at,
+                   p.fecha_entrega_programada, p.horario_entrega,
                    (
                        SELECT s.estado FROM status s
                        WHERE s.id_pedido2 = p.id_pedido
@@ -126,7 +133,7 @@ class RepartidoresController extends BaseController
             WHERE p.id_repartidor = ?
                OR (? = 1 AND p.id_repartidor IS NULL)
             ORDER BY p.id_pedido ASC, (d.latitud IS NULL) ASC, d.id_direccion ASC
-        ", [$idRepartidor, $ids ? 1 : 0])->getResultArray();
+        ", [$idRepartidor, 1])->getResultArray();
 
         // Un registro por pedido, solo los que siguen activos.
         // Un registro por pedido. Los míos: confirmados o en tránsito.
@@ -145,10 +152,8 @@ class RepartidoresController extends BaseController
 
         // Los pedidos elegidos se geocodifican primero.
         // Orden: elegidos, luego los míos, luego los sin asignar.
-        if ($ids) {
-            $rango = static fn ($id) => in_array($id, $ids, true) ? 0 : ($unicos[$id]['disponible'] ? 2 : 1);
-            uksort($unicos, static fn ($a, $b) => $rango($a) <=> $rango($b));
-        }
+        $rango = static fn ($id) => in_array($id, $ids, true) ? 0 : ($unicos[$id]['disponible'] ? 2 : 1);
+        uksort($unicos, static fn ($a, $b) => $rango($a) <=> $rango($b));
 
         // Direcciones sin coordenadas: se geocodifican ahora (máx. 2 por consulta) y se guardan.
         $geocodificadas = 0;
@@ -170,8 +175,9 @@ class RepartidoresController extends BaseController
             ]);
             $db->table('direccion')->where('id_direccion', $f['id_direccion'])->update($campos);
             if ($campos['latitud'] !== null) {
-                $unicos[$id]['latitud']  = $campos['latitud'];
-                $unicos[$id]['longitud'] = $campos['longitud'];
+                $unicos[$id]['latitud']       = $campos['latitud'];
+                $unicos[$id]['longitud']      = $campos['longitud'];
+                $unicos[$id]['geo_precision'] = $campos['geo_precision'] ?? null;
             }
             if (Geocoder::huboError()) {
                 break; // el servicio no responde: no se hacen más intentos en esta consulta
@@ -200,6 +206,8 @@ class RepartidoresController extends BaseController
                 'disponible'     => (bool) $f['disponible'],
                 'lat'            => $f['latitud'] !== null ? (float) $f['latitud'] : null,
                 'lng'            => $f['longitud'] !== null ? (float) $f['longitud'] : null,
+                'precision'      => $f['geo_precision'] ?? null,
+                'limite_ts'      => $this->horaLimite($f['fecha_entrega_programada'] ?? null, $f['horario_entrega'] ?? null),
             ];
         }
 
@@ -214,8 +222,9 @@ class RepartidoresController extends BaseController
         if ($ids) {
             $seleccion = array_values(array_filter($pedidos, static fn ($p) => in_array($p['id_pedido'], $ids, true)));
             $resto     = array_values(array_filter($pedidos, static fn ($p) => ! in_array($p['id_pedido'], $ids, true)));
-            $plan      = RutaDijkstra::planificarSeleccion($origen, $seleccion);
-            $cercanos  = $plan['hay_ruta'] ? RutaDijkstra::cercanos($origen, $plan['paradas'], $resto) : [];
+            $calc      = $this->planYCercanos($origen, $seleccion, $resto);
+            $plan      = $calc['plan'];
+            $cercanos  = $calc['cercanos'];
 
             // Resto de pedidos activos que NO quedan de paso: se muestran en el mapa para
             // dar contexto, pero no se pueden agregar (los sin asignar) ni alteran la ruta.
@@ -244,10 +253,10 @@ class RepartidoresController extends BaseController
             ]);
         }
 
-        $plan = RutaDijkstra::planificar($origen, $pedidos);
         // Siempre ofrecer pedidos cercanos (de cualquier usuario), no solo en modo recorrido.
         $misPedidos  = array_values(array_filter($pedidos, static fn ($p) => ! $p['disponible']));
         $otroPedidos = array_values(array_filter($pedidos, static fn ($p) => $p['disponible']));
+        $plan        = RutaDijkstra::planificar($origen, $misPedidos);
         $cercanos    = ($plan['hay_ruta'] && $otroPedidos)
             ? RutaDijkstra::cercanos($origen, $plan['paradas'], $otroPedidos)
             : [];
@@ -257,8 +266,392 @@ class RepartidoresController extends BaseController
             'origen_gps' => $conGps,
             'ruta'       => $plan,
             'cercanos'   => $cercanos,
+            'mapa'       => $this->armarMapa($origen, $misPedidos, $otroPedidos),
             'timestamp'  => date('H:i:s'),
         ]);
+    }
+
+    // ───────────────────────── Mapa fijo: calles, "de paso" y horarios ─────────────────────────
+
+    /**
+     * Hora límite prometida (timestamp unix) a partir de fecha_entrega_programada + horario_entrega.
+     * Se interpreta en la zona horaria del negocio (fruver.timezone). Sin horario: null.
+     */
+    private function horaLimite($fecha, $horario): ?int
+    {
+        $fecha   = trim((string) $fecha);
+        $horario = trim((string) $horario);
+        if ($fecha === '' || $fecha === '0000-00-00' || $horario === '' || $horario === '00:00:00') {
+            return null;
+        }
+
+        try {
+            return (new \DateTimeImmutable($fecha . ' ' . $horario, RutaDijkstra::zona()))->getTimestamp();
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function horaTexto(int $ts): string
+    {
+        return (new \DateTimeImmutable('@' . $ts))->setTimezone(RutaDijkstra::zona())->format('H:i');
+    }
+
+    /**
+     * Distancias (km) y tiempos (min) entre puntos: por calles (OSRM) o, si no responde,
+     * línea recta × FACTOR_VIAL a VELOCIDAD_KMH.
+     *
+     * @return array{km: array, min: array, fuente: string}
+     */
+    private function matrizPuntos(array $puntos): array
+    {
+        $m = count($puntos) <= self::TOPE_MATRIZ ? Osrm::matrices($puntos) : null;
+        if ($m !== null) {
+            return $m + ['fuente' => 'calles'];
+        }
+
+        $km = [];
+        $mn = [];
+        foreach ($puntos as $i => $a) {
+            foreach ($puntos as $j => $b) {
+                $d          = $i === $j ? 0.0 : RutaDijkstra::haversine($a, $b) * RutaDijkstra::FACTOR_VIAL;
+                $km[$i][$j] = $d;
+                $mn[$i][$j] = $d / self::VELOCIDAD_KMH * 60;
+            }
+        }
+
+        return ['km' => $km, 'min' => $mn, 'fuente' => 'recta'];
+    }
+
+    /**
+     * Descarta a los candidatos que obviamente no quedan de paso (en línea recta, con margen)
+     * para no gastar puntos de la consulta a OSRM, y deja los mejores.
+     */
+    private function candidatosPlausibles(array $origen, array $seleccion, array $candidatos): array
+    {
+        $base = [['lat' => $origen['lat'], 'lng' => $origen['lng']]];
+        foreach ($seleccion as $p) {
+            $base[] = ['lat' => $p['lat'], 'lng' => $p['lng']];
+        }
+
+        $puntuados = [];
+        foreach ($candidatos as $c) {
+            if (! isset($c['lat'], $c['lng'])) {
+                continue;
+            }
+            $minPunto = INF;
+            $mejor    = INF;
+            foreach ($base as $i => $a) {
+                $dAC      = RutaDijkstra::haversine($a, $c);
+                $minPunto = min($minPunto, $dAC);
+                foreach ($base as $j => $b) {
+                    if ($j <= $i) {
+                        continue;
+                    }
+                    $ab     = RutaDijkstra::haversine($a, $b);
+                    $desv   = $dAC + RutaDijkstra::haversine($c, $b) - $ab;
+                    $limite = max(RutaDijkstra::DESVIO_MAX_KM, RutaDijkstra::DESVIO_MAX_PCT * $ab);
+                    $mejor  = min($mejor, $desv / $limite);
+                }
+            }
+            // Margen 1.5: por calles el desvío puede ser menor que en línea recta.
+            if ($minPunto <= RutaDijkstra::CERCA_PARADA_KM * 1.5 || $mejor <= 1.5) {
+                $puntuados[] = [min($minPunto / RutaDijkstra::CERCA_PARADA_KM, $mejor), $c];
+            }
+        }
+        usort($puntuados, static fn ($x, $y) => $x[0] <=> $y[0]);
+
+        $tope = max(0, min(self::MAX_CANDIDATOS_MAPA, self::TOPE_MATRIZ - 1 - count($seleccion)));
+
+        return array_values(array_map(static fn ($x) => $x[1], array_slice($puntuados, 0, $tope)));
+    }
+
+    /**
+     * Ruta (Dijkstra) de la selección + pedidos que quedan de paso, ambos con distancias por calle.
+     * Es el mismo cálculo para la lista, el mapa y la validación al tomar un pedido.
+     *
+     * @return array{plan: array, cercanos: array, matriz: ?array, idx_sel: array, idx_cand: array, cands: array}
+     */
+    private function planYCercanos(array $origen, array $seleccion, array $candidatos): array
+    {
+        $sel = array_values(array_filter($seleccion, static fn ($p) => isset($p['lat'], $p['lng'])));
+        if (! $sel) {
+            return [
+                'plan'     => RutaDijkstra::planificarSeleccion($origen, $seleccion),
+                'cercanos' => [], 'matriz' => null, 'idx_sel' => [], 'idx_cand' => [], 'cands' => [],
+            ];
+        }
+
+        $cands  = $this->candidatosPlausibles($origen, $sel, $candidatos);
+        $n      = count($sel);
+        $puntos = [['lat' => $origen['lat'], 'lng' => $origen['lng']]];
+        foreach (array_merge($sel, $cands) as $p) {
+            $puntos[] = ['lat' => $p['lat'], 'lng' => $p['lng']];
+        }
+
+        $m      = $this->matrizPuntos($puntos);
+        $calles = $m['fuente'] === 'calles';
+
+        // Bloque [salida + paradas] de la matriz grande, para ordenar la visita con Dijkstra.
+        $bloque = static function (array $nodos) use ($m, $n): ?array {
+            if (count($nodos) !== $n + 1) {
+                return null;
+            }
+            $km = [];
+            for ($i = 0; $i <= $n; $i++) {
+                for ($j = 0; $j <= $n; $j++) {
+                    $km[$i][$j] = $m['km'][$i][$j];
+                }
+            }
+
+            return ['km' => $km];
+        };
+        $plan = RutaDijkstra::planificarSeleccion($origen, $seleccion, $calles ? $bloque : null);
+
+        $idxSel = [];
+        foreach ($sel as $i => $p) {
+            $idxSel[(int) $p['id_pedido']] = $i + 1;
+        }
+        $idxCand = [];
+        foreach ($cands as $k => $c) {
+            $idxCand[(int) $c['id_pedido']] = $n + 1 + $k;
+        }
+
+        $cercanos = [];
+        if ($plan['hay_ruta'] && $cands) {
+            $perm = [0];
+            foreach ($plan['paradas'] as $p) {
+                $perm[] = $idxSel[(int) $p['id_pedido']];
+            }
+            foreach ($cands as $k => $_) {
+                $perm[] = $n + 1 + $k;
+            }
+            $kmP = null;
+            if ($calles) {
+                $kmP = [];
+                foreach ($perm as $a => $ia) {
+                    foreach ($perm as $b => $ib) {
+                        $kmP[$a][$b] = $m['km'][$ia][$ib];
+                    }
+                }
+            }
+            $cercanos = RutaDijkstra::cercanos($origen, $plan['paradas'], $cands, $kmP);
+        }
+
+        return [
+            'plan' => $plan, 'cercanos' => $cercanos, 'matriz' => $m,
+            'idx_sel' => $idxSel, 'idx_cand' => $idxCand, 'cands' => $cands,
+        ];
+    }
+
+    /**
+     * Datos del mapa fijo del panel: todas mis entregas activas en ruta (con horarios), los pedidos
+     * sin asignar que quedan de paso (con el efecto de agregarlos) y el resto como contexto.
+     */
+    private function armarMapa(array $origen, array $mios, array $disponibles): array
+    {
+        $sinUbicacion = [];
+        $misCoord     = [];
+        foreach ($mios as $p) {
+            if ($p['lat'] === null || $p['lng'] === null) {
+                $sinUbicacion[] = $p['id_pedido'];
+            } else {
+                $misCoord[] = $p;
+            }
+        }
+        $omitidas = [];
+        if (count($misCoord) > self::MAX_PARADAS_MAPA) {
+            $omitidas = array_column(array_slice($misCoord, self::MAX_PARADAS_MAPA), 'id_pedido');
+            $misCoord = array_slice($misCoord, 0, self::MAX_PARADAS_MAPA);
+        }
+        $dispCoord = [];
+        foreach ($disponibles as $p) {
+            if ($p['lat'] === null || $p['lng'] === null) {
+                $sinUbicacion[] = $p['id_pedido'];
+            } else {
+                $dispCoord[] = $p;
+            }
+        }
+
+        $resumen = static fn (array $p): array => [
+            'id_pedido'      => $p['id_pedido'],
+            'cliente_nombre' => $p['cliente_nombre'],
+            'direccion'      => $p['direccion'],
+            'lat'            => $p['lat'],
+            'lng'            => $p['lng'],
+            'precision'      => $p['precision'] ?? null,
+        ];
+
+        $vacio = [
+            'hay_ruta' => false, 'motivo' => '', 'origen' => $origen, 'paradas' => [], 'trazo' => [],
+            'trazo_calles' => false, 'distancia_km' => 0.0, 'duracion_min' => 0, 'llegada_final' => null,
+            'google_url' => null, 'truncada' => false, 'fuente' => null, 'omitidas' => $omitidas,
+            'sin_ubicacion' => $sinUbicacion, 'de_paso' => [], 'otros' => [],
+        ];
+
+        $calc = $this->planYCercanos($origen, $misCoord, $dispCoord);
+        $plan = $calc['plan'];
+        if (! $plan['hay_ruta']) {
+            $vacio['motivo'] = $mios
+                ? 'Tus entregas aún no tienen ubicación en el mapa.'
+                : 'No tienes entregas activas; abajo ves los pedidos sin asignar.';
+            $vacio['otros'] = array_map($resumen, $dispCoord);
+
+            return $vacio;
+        }
+
+        $m        = $calc['matriz'];
+        $servicio = (float) env('fruver.minutosPorParada', 4);
+        $ahora    = time();
+
+        $limPorIdx = [];
+        $idPorIdx  = [];
+        foreach ($misCoord as $p) {
+            $ix             = $calc['idx_sel'][(int) $p['id_pedido']];
+            $limPorIdx[$ix] = $p['limite_ts'] ?? null;
+            $idPorIdx[$ix]  = (int) $p['id_pedido'];
+        }
+        foreach ($calc['cands'] as $c) {
+            $ix             = $calc['idx_cand'][(int) $c['id_pedido']];
+            $limPorIdx[$ix] = $c['limite_ts'] ?? null;
+            $idPorIdx[$ix]  = (int) $c['id_pedido'];
+        }
+
+        // Llegadas (timestamps) siguiendo un orden de nodos de la matriz.
+        $simular = static function (array $orden) use ($m, $servicio, $ahora): array {
+            $t = $ahora;
+            $prev = 0;
+            $res = [];
+            foreach ($orden as $ix) {
+                $t += $m['min'][$prev][$ix] * 60;
+                $res[] = $t;
+                $t += $servicio * 60;
+                $prev = $ix;
+            }
+
+            return $res;
+        };
+
+        $orden = [];
+        foreach ($plan['paradas'] as $p) {
+            $orden[] = $calc['idx_sel'][(int) $p['id_pedido']];
+        }
+        $llegadas = $simular($orden);
+
+        $paradas  = [];
+        $prev     = 0;
+        $minTotal = 0.0;
+        $tardeBase = [];
+        foreach ($plan['paradas'] as $pos => $p) {
+            $ix      = $orden[$pos];
+            $minTr   = $m['min'][$prev][$ix];
+            $minTotal += $minTr;
+            $lim     = $limPorIdx[$ix] ?? null;
+            $tarde   = $lim !== null ? max(0.0, ($llegadas[$pos] - $lim) / 60) : 0.0;
+            $tardeBase[$ix] = $tarde;
+            $paradas[] = [
+                'orden'          => $p['orden'],
+                'id_pedido'      => $p['id_pedido'],
+                'cliente_nombre' => $p['cliente_nombre'],
+                'direccion'      => $p['direccion'],
+                'lat'            => $p['lat'],
+                'lng'            => $p['lng'],
+                'precision'      => $p['precision'] ?? null,
+                'km_tramo'       => $p['km_tramo'],
+                'min_tramo'      => (int) round($minTr),
+                'llegada'        => $this->horaTexto((int) $llegadas[$pos]),
+                'limite'         => $lim !== null ? $this->horaTexto($lim) : null,
+                'tarde_min'      => (int) round($tarde),
+            ];
+            $prev = $ix;
+        }
+
+        // Pedidos sin asignar que quedan de paso: mejor posición de inserción y a quién atrasarían.
+        $dePaso   = [];
+        $idsPaso  = [];
+        foreach ($calc['cercanos'] as $c) {
+            $ci        = $calc['idx_cand'][(int) $c['id_pedido']];
+            $mejorK    = 0;
+            $mejorExtra = INF;
+            for ($k = 0, $n = count($orden); $k <= $n; $k++) {
+                $a     = $k === 0 ? 0 : $orden[$k - 1];
+                $extra = $m['min'][$a][$ci] + $servicio;
+                if ($k < $n) {
+                    $extra += $m['min'][$ci][$orden[$k]] - $m['min'][$a][$orden[$k]];
+                }
+                if ($extra < $mejorExtra) {
+                    $mejorExtra = $extra;
+                    $mejorK     = $k;
+                }
+            }
+
+            $nuevo = $orden;
+            array_splice($nuevo, $mejorK, 0, [$ci]);
+            $lleg   = $simular($nuevo);
+            $atrasa = [];
+            $tardePropio = 0.0;
+            foreach ($nuevo as $pos => $ix) {
+                $lim = $limPorIdx[$ix] ?? null;
+                if ($lim === null) {
+                    continue;
+                }
+                $tarde = max(0.0, ($lleg[$pos] - $lim) / 60);
+                if ($ix === $ci) {
+                    $tardePropio = $tarde;
+                } elseif ($tarde - ($tardeBase[$ix] ?? 0.0) >= 1.0) {
+                    $atrasa[] = [
+                        'id_pedido' => $idPorIdx[$ix],
+                        'min_extra' => (int) round($tarde - ($tardeBase[$ix] ?? 0.0)),
+                        'tarde_min' => (int) round($tarde),
+                    ];
+                }
+            }
+
+            $lim = $limPorIdx[$ci] ?? null;
+            $dePaso[] = $resumen($c) + [
+                'desvio_km'      => $c['desvio_km'],
+                'dist_parada_km' => $c['dist_parada_km'],
+                'extra_min'      => (int) round($mejorExtra),
+                'limite'         => $lim !== null ? $this->horaTexto($lim) : null,
+                'tarde_min'      => (int) round($tardePropio),
+                'atrasa'         => $atrasa,
+            ];
+            $idsPaso[] = (int) $c['id_pedido'];
+        }
+
+        $otros = [];
+        foreach ($dispCoord as $p) {
+            if (! in_array((int) $p['id_pedido'], $idsPaso, true)) {
+                $otros[] = $resumen($p);
+            }
+        }
+
+        // Trazo sobre las calles (OSRM); sin respuesta, líneas rectas.
+        $puntos = [['lat' => $origen['lat'], 'lng' => $origen['lng']]];
+        foreach ($plan['paradas'] as $p) {
+            $puntos[] = ['lat' => $p['lat'], 'lng' => $p['lng']];
+        }
+        $calle = $m['fuente'] === 'calles' ? Osrm::ruta($puntos) : null;
+        $trazo = $calle['trazo'] ?? array_map(static fn (array $q): array => [$q['lat'], $q['lng']], $puntos);
+
+        return [
+            'hay_ruta'      => true,
+            'motivo'        => 'Ruta más corta por todas tus entregas activas.',
+            'origen'        => $origen,
+            'paradas'       => $paradas,
+            'trazo'         => $trazo,
+            'trazo_calles'  => $calle !== null,
+            'distancia_km'  => $plan['distancia_km'],
+            'duracion_min'  => (int) round($minTotal),
+            'llegada_final' => $paradas ? end($paradas)['llegada'] : null,
+            'google_url'    => RutaDijkstra::urlGoogleMaps($origen, $plan['paradas']),
+            'truncada'      => count($plan['paradas']) > RutaDijkstra::MAX_PARADAS_GOOGLE,
+            'fuente'        => $plan['fuente'] ?? 'recta',
+            'omitidas'      => $omitidas,
+            'sin_ubicacion' => $sinUbicacion,
+            'de_paso'       => $dePaso,
+            'otros'         => $otros,
+        ];
     }
 
     /**
@@ -371,16 +764,13 @@ class RepartidoresController extends BaseController
             return false;
         }
 
-        $plan = RutaDijkstra::planificarSeleccion($origen, $seleccion);
-        if (! $plan['hay_ruta']) {
-            return false;
-        }
-
-        return RutaDijkstra::cercanos($origen, $plan['paradas'], [[
+        $calc = $this->planYCercanos($origen, $seleccion, [[
             'id_pedido' => $idCandidato,
             'lat'       => (float) $cand['latitud'],
             'lng'       => (float) $cand['longitud'],
-        ]]) !== [];
+        ]]);
+
+        return $calc['plan']['hay_ruta'] && $calc['cercanos'] !== [];
     }
 
     /**
@@ -505,6 +895,9 @@ class RepartidoresController extends BaseController
                 d.colonia,
                 d.municipio,
                 d.estado AS dir_estado,
+                d.latitud,
+                d.longitud,
+                d.geo_precision,
                 (
                     SELECT s.estado 
                     FROM status s 
@@ -518,7 +911,7 @@ class RepartidoresController extends BaseController
             LEFT JOIN direccion d ON d.id_cliente = c.id_cliente
             WHERE p.id_repartidor = ? 
                OR p.id_repartidor IS NULL
-            ORDER BY p.id_pedido DESC
+            ORDER BY p.id_pedido DESC, (d.latitud IS NULL) ASC, d.id_direccion ASC
         ";
 
         $rows = $db->query($sql, [$idRepartidor])->getResultArray();
@@ -604,6 +997,9 @@ class RepartidoresController extends BaseController
                 'cliente_telefono'         => preg_replace('/[^0-9]/', '', (string) ($p['cli_telefono'] ?? '')),
                 'direccion'                => $direccionCompleta,
                 'tiene_mapa'               => ! empty($partesDir),
+                'lat'                      => $p['latitud'] !== null ? (float) $p['latitud'] : null,
+                'lng'                      => $p['longitud'] !== null ? (float) $p['longitud'] : null,
+                'precision'                => $p['geo_precision'] ?? null,
                 'total'                    => $total,
                 'modalidad_pago'           => $modalidad,
                 'deuda_restante'           => $deudaRestante,

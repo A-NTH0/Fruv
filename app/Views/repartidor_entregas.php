@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fruver - Portal de Repartidor</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" data-leaflet="true">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -88,6 +89,46 @@
                 </div>
             </div>
 
+            <!-- Mapa fijo: mis entregas en ruta + pedidos sin asignar que quedan de paso. Lo llena js/repartidor-mapa.js (solo en "Mis entregas") -->
+            <section id="panel-mapa" class="mb-6" aria-live="polite">
+                <div class="rounded-2xl border border-rose-200 bg-white p-4 shadow-sm">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h2 class="text-base font-extrabold text-gray-900">Mapa de tus entregas</h2>
+                            <p id="mapa-resumen" class="text-xs text-gray-600">Calculando tu ruta…</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" id="btn-mapa-recalcular"
+                                    class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:border-rose-300 hover:text-rose-600">
+                                Recalcular desde mi ubicación
+                            </button>
+                            <button type="button" id="btn-iniciar-recorrido"
+                                    class="hidden rounded-xl bg-indigo-600 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700">
+                                Iniciar recorrido
+                            </button>
+                            <a id="btn-google-maps" href="#" target="_blank" rel="noopener noreferrer"
+                               class="hidden rounded-xl bg-rose-600 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-rose-700">
+                                Navegar en Google Maps
+                            </a>
+                        </div>
+                    </div>
+                    <p id="mapa-aviso" class="hidden mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800"></p>
+                    <div id="mapa-ruta" class="ruta-mapa hidden mt-3" role="application" aria-label="Mapa con tus entregas y los pedidos que te quedan de paso"></div>
+                    <label id="mapa-otros-wrap" class="mt-2 hidden items-center gap-2 text-xs font-semibold text-gray-700">
+                        <input type="checkbox" id="mapa-ver-otros" checked>
+                        Mostrar los demás pedidos sin asignar (<span id="mapa-n-otros">0</span>)
+                    </label>
+                    <p id="mapa-leyenda" class="mt-1 hidden text-[10px] text-gray-500">
+                        Números rojos: tus entregas en orden · <b>+</b> verde: sin asignar y te queda de paso (puedes tomarlo) · punto gris: sin asignar, lejos de tu ruta (solo informativo) · naranja: ubicación aproximada · © OpenStreetMap.
+                    </p>
+                    <div id="mapa-paso" class="mt-3 hidden rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                        <p class="text-xs font-extrabold uppercase text-emerald-800">Pedidos sin asignar que te quedan de paso</p>
+                        <ul id="mapa-paso-lista" class="divide-y divide-emerald-100"></ul>
+                    </div>
+                    <p id="mapa-notas" class="mt-2 text-[11px] text-gray-500"></p>
+                </div>
+            </section>
+
             <!-- Ruta sugerida (Dijkstra): se llena desde js/repartidor-ruta.js y solo se ve en "Mis entregas" -->
             <section id="panel-ruta" class="mb-6" aria-live="polite"></section>
 
@@ -134,6 +175,7 @@
 
     <script>
         const BASE_URL = '<?= rtrim(base_url(), '/') ?>/';
+        const TIENDA_COORD = <?= json_encode(['lat' => (float) env('fruver.origenLat', 19.3139), 'lng' => (float) env('fruver.origenLng', -97.9206)]) ?>;
         const REPARTIDOR_INICIAL = <?= json_encode([
             'vistaInicial' => $vistaInicial,
             'firmaEstado'  => $firmaEstado,
@@ -143,6 +185,8 @@
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE) ?>;
     </script>
     <script src="<?= base_url('js/repartidor-entregas.js') ?>?v=<?= @filemtime(FCPATH . 'js/repartidor-entregas.js') ?: time() ?>"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="<?= base_url('js/repartidor-ruta.js') ?>?v=<?= @filemtime(FCPATH . 'js/repartidor-ruta.js') ?: time() ?>"></script>
+    <script src="<?= base_url('js/repartidor-mapa.js') ?>?v=<?= @filemtime(FCPATH . 'js/repartidor-mapa.js') ?: time() ?>"></script>
 </body>
 </html>

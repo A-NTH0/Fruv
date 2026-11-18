@@ -100,6 +100,19 @@ class Geocoder
         return null;
     }
 
+    /** @return bool|string true/false, o la ruta a un cacert.pem si se configuró geocoder.caBundle (lo usa Osrm) */
+    public static function verificarSsl()
+    {
+        $bundle = trim((string) env('geocoder.caBundle', ''));
+        if ($bundle !== '' && is_file($bundle)) {
+            return $bundle;
+        }
+
+        $bool = filter_var(env('geocoder.verifySsl', true), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+        return $bool ?? true;
+    }
+
     /** @return array{lat: float, lng: float}|null */
     private static function buscar(string $texto): ?array
     {

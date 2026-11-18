@@ -135,7 +135,10 @@
             const res = await fetch(BASE_URL + 'repartidores/ruta' + qs, { headers: { 'Accept': 'application/json' } });
             if (!res.ok) return;
             const data = await res.json();
-            if (data.ok) pintar(data);
+            if (data.ok) {
+                pintar(data);
+                if (window.rutaMapaPintar) window.rutaMapaPintar(data);   // mapa fijo (repartidor-mapa.js)
+            }
         } catch (e) {
             console.error('No se pudo calcular la ruta:', e);
         } finally {
@@ -179,7 +182,7 @@
             <div class="mb-3 flex items-start justify-between gap-3">
                 <div>
                     <h2 class="text-base font-extrabold text-gray-900">Recorrido</h2>
-                    <p class="text-xs text-gray-600">Mapa de OpenStreetMap con una ruta vial de OSRM y el orden de paradas calculado por Fruv · salida desde ${salida}.</p>
+                    <p class="text-xs text-gray-600">Las paradas van en el orden de la ruta más rápida desde ${salida}. Incluye todas las entregas elegidas; usa “Quitar” para dejar alguna fuera.</p>
                 </div>
                 <button type="button" id="rec-cerrar" class="rounded-lg px-2 py-1 text-lg font-bold text-gray-500 hover:bg-gray-100" aria-label="Cerrar">&times;</button>
             </div>`;
@@ -283,6 +286,11 @@
         }
         caja.querySelector('#rec-cerrar')?.addEventListener('click', cerrarRecorrido);
         caja.querySelector('#rec-ubicacion')?.addEventListener('click', () => { posicion = null; cargarRecorrido(); });
+        caja.querySelectorAll('[data-quitar]').forEach(b => b.addEventListener('click', () => {
+            if (recIds.length <= 1) return;
+            recIds = recIds.filter(id => id !== Number(b.dataset.quitar));
+            cargarRecorrido();
+        }));
         caja.querySelectorAll('[data-agregar]').forEach(b => b.addEventListener('click', async () => {
             const id = Number(b.dataset.agregar);
             if (b.dataset.disponible === '1') {          // nadie lo ha tomado: primero se asigna a este repartidor
@@ -710,8 +718,21 @@
         cargarRecorrido();
     }
 
+    // Recorrido con varios pedidos a la vez: el orden lo decide la ruta más rápida desde tu ubicación.
+    function iniciarRecorridoConPedidos(ids) {
+        const lista = [...new Set((ids || []).map(Number).filter(i => i > 0))];
+        if (!lista.length) return;
+        const m = asegurarModal();
+        m.classList.remove('hidden');
+        m.classList.add('flex');
+        recIds = lista;
+        cargarRecorrido();
+    }
+
     window.iniciarRecorrido = iniciarRecorrido;
+    window.iniciarRecorridoConPedidos = iniciarRecorridoConPedidos;
 
     window.cargarRutaRepartidor = cargarRutaRepartidor;
+    window.recalcularRutaDesdeGps = () => { posicion = null; cargarRutaRepartidor(); };
     document.addEventListener('DOMContentLoaded', cargarRutaRepartidor);
 })();
