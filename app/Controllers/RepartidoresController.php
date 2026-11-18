@@ -215,13 +215,32 @@ class RepartidoresController extends BaseController
             $seleccion = array_values(array_filter($pedidos, static fn ($p) => in_array($p['id_pedido'], $ids, true)));
             $resto     = array_values(array_filter($pedidos, static fn ($p) => ! in_array($p['id_pedido'], $ids, true)));
             $plan      = RutaDijkstra::planificarSeleccion($origen, $seleccion);
+            $cercanos  = $plan['hay_ruta'] ? RutaDijkstra::cercanos($origen, $plan['paradas'], $resto) : [];
+
+            // Resto de pedidos activos que NO quedan de paso: se muestran en el mapa para
+            // dar contexto, pero no se pueden agregar (los sin asignar) ni alteran la ruta.
+            $idsCercanos  = array_column($cercanos, 'id_pedido');
+            $otros        = [];
+            $sinUbicacion = [];
+            foreach ($resto as $p) {
+                if (in_array($p['id_pedido'], $idsCercanos, true)) {
+                    continue;
+                }
+                if ($p['lat'] === null || $p['lng'] === null) {
+                    $sinUbicacion[] = $p['id_pedido'];
+                    continue;
+                }
+                $otros[] = $p;
+            }
 
             return $this->response->setJSON([
-                'ok'         => true,
-                'origen_gps' => $conGps,
-                'ruta'       => $plan,
-                'cercanos'   => $plan['hay_ruta'] ? RutaDijkstra::cercanos($origen, $plan['paradas'], $resto) : [],
-                'timestamp'  => date('H:i:s'),
+                'ok'            => true,
+                'origen_gps'    => $conGps,
+                'ruta'          => $plan,
+                'cercanos'      => $cercanos,
+                'otros'         => $otros,
+                'sin_ubicacion' => $sinUbicacion,
+                'timestamp'     => date('H:i:s'),
             ]);
         }
 
@@ -274,6 +293,25 @@ class RepartidoresController extends BaseController
             return $this->response->setJSON(['ok' => false, 'mensaje' => 'Solo se pueden tomar pedidos confirmados.']);
         }
 
+        // Si se toma desde el recorrido, solo se permite cuando el pedido queda de paso
+        // (mismo cálculo de ruta más corta que ve el repartidor). Sin ruta (pestaña
+        // "Disponibles") el comportamiento es el de siempre.
+        $rutaIds = array_values(array_unique(array_filter(
+            array_map('intval', explode(',', (string) $this->request->getPost('ruta_pedidos'))),
+            static fn ($i) => $i > 0
+        )));
+        if ($rutaIds && empty($pedido['id_repartidor'])) {
+            $oLat = filter_var($this->request->getPost('origen_lat'), FILTER_VALIDATE_FLOAT);
+            $oLng = filter_var($this->request->getPost('origen_lng'), FILTER_VALIDATE_FLOAT);
+            if ($oLat === false || $oLng === false || abs($oLat) > 90 || abs($oLng) > 180
+                || ! $this->pedidoQuedaDePaso($idPedido, $rutaIds, $idRepartidor, ['lat' => (float) $oLat, 'lng' => (float) $oLng])) {
+                return $this->response->setJSON([
+                    'ok'      => false,
+                    'mensaje' => 'Este pedido no queda de paso en tu ruta, así que no se puede agregar desde el recorrido.',
+                ]);
+            }
+        }
+
         if (empty($pedido['id_repartidor'])) {
             $db->table('pedido')
                 ->where('id_pedido', $idPedido)
@@ -292,6 +330,57 @@ class RepartidoresController extends BaseController
             'ok'      => true,
             'mensaje' => 'Pedido #' . $idPedido . ' asignado a tu ruta exitosamente.',
         ]);
+    }
+
+    /**
+     * ¿El pedido candidato queda de paso en la ruta (Dijkstra) formada por $rutaIds?
+     * Las paradas deben ser del repartidor; el candidato, un pedido sin asignar.
+     */
+    private function pedidoQuedaDePaso(int $idCandidato, array $rutaIds, int $idRepartidor, array $origen): bool
+    {
+        $ids          = array_values(array_unique(array_merge($rutaIds, [$idCandidato])));
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $filas        = db_connect()->query("
+            SELECT p.id_pedido, p.id_repartidor, d.latitud, d.longitud
+            FROM pedido p
+            INNER JOIN cliente c ON c.id_cliente = p.id_cliente1
+            LEFT JOIN direccion d ON d.id_cliente = c.id_cliente
+            WHERE p.id_pedido IN ($placeholders)
+            ORDER BY p.id_pedido ASC, (d.latitud IS NULL) ASC, d.id_direccion ASC
+        ", $ids)->getResultArray();
+
+        $porPedido = [];
+        foreach ($filas as $f) {
+            $id = (int) $f['id_pedido'];
+            if (! isset($porPedido[$id])) {
+                $porPedido[$id] = $f;
+            }
+        }
+
+        $seleccion = [];
+        foreach ($rutaIds as $id) {
+            $f = $porPedido[$id] ?? null;
+            if (! $f || (int) $f['id_repartidor'] !== $idRepartidor || $f['latitud'] === null || $f['longitud'] === null) {
+                return false;
+            }
+            $seleccion[] = ['id_pedido' => $id, 'lat' => (float) $f['latitud'], 'lng' => (float) $f['longitud']];
+        }
+
+        $cand = $porPedido[$idCandidato] ?? null;
+        if (! $seleccion || ! $cand || $cand['latitud'] === null || $cand['longitud'] === null) {
+            return false;
+        }
+
+        $plan = RutaDijkstra::planificarSeleccion($origen, $seleccion);
+        if (! $plan['hay_ruta']) {
+            return false;
+        }
+
+        return RutaDijkstra::cercanos($origen, $plan['paradas'], [[
+            'id_pedido' => $idCandidato,
+            'lat'       => (float) $cand['latitud'],
+            'lng'       => (float) $cand['longitud'],
+        ]]) !== [];
     }
 
     /**

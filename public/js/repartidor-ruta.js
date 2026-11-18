@@ -212,13 +212,31 @@
                         class="rounded-xl bg-amber-500 px-3 py-2 text-xs font-bold text-white hover:bg-amber-600 disabled:opacity-50">${c.disponible ? 'Tomar y agregar' : 'Agregar'}</button>
                 </li>`).join('');
 
+            // Mis pedidos activos que no quedaron en la ruta ni "de paso": se pueden sumar cuando quiera.
+            const misOtros = (data.otros || []).filter(o => !o.disponible).map(o => `
+                <li class="flex items-center gap-3 py-2">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-bold text-gray-900">Pedido #${o.id_pedido} · ${esc(o.cliente_nombre)}</p>
+                        <p class="text-xs text-gray-600">${esc(o.direccion)}</p>
+                    </div>
+                    <button type="button" data-agregar="${o.id_pedido}" data-disponible="0"
+                            class="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700">Agregar</button>
+                </li>`).join('');
+            const totalOtros = (data.otros || []).length;
+            const sinUbic = (data.sin_ubicacion || []).length;
+
             cuerpo = `
                 <ol class="divide-y divide-gray-100">${filas}</ol>
                 <p id="resumen-ruta-vial" class="mt-2 text-xs font-semibold text-gray-700">Calculando la ruta por calles…</p>
                 <div id="mapa-recorrido" class="mt-3 h-72 w-full overflow-hidden rounded-xl border border-gray-200 bg-gray-100 sm:h-96" role="application" aria-label="Mapa del recorrido">
                     <p class="p-4 text-sm text-gray-600">Cargando el mapa y la ruta vial…</p>
                 </div>
-                <p class="mt-1 text-[10px] text-gray-500">S: salida · números: pedidos incluidos · C azul: pedido cercano asignado · + ámbar: pedido disponible. © OpenStreetMap.</p>
+                <label class="mt-2 flex items-center gap-2 text-xs font-semibold text-gray-700">
+                    <input type="checkbox" id="rec-ver-otros" checked>
+                    Mostrar los demás pedidos en el mapa (${totalOtros})
+                </label>
+                <p class="mt-1 text-[10px] text-gray-500">S: salida · números: pedidos incluidos · C azul: tuyo, de paso · + ámbar: sin asignar, de paso (se puede tomar) · punto azul claro: tuyo, fuera de ruta · punto gris: sin asignar, lejos de tu ruta (solo informativo). © OpenStreetMap.</p>
+                ${sinUbic ? `<p class="mt-1 text-[10px] text-gray-500">${sinUbic} pedido(s) aún sin ubicación en el mapa: ${(data.sin_ubicacion || []).map(i => '#' + i).join(', ')}.</p>` : ''}
                 <div id="estado-desvio" class="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-800" role="status" aria-live="polite">
                     Esperando la ruta vial para verificar tu ubicación…
                 </div>
@@ -232,6 +250,11 @@
                         ? `<ul class="divide-y divide-amber-100">${cercanos}</ul>`
                         : '<p class="mt-1 text-xs text-amber-800">Por ahora no hay otros pedidos cerca de esta ruta.</p>'}
                 </div>
+                ${misOtros ? `
+                <div class="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3">
+                    <p class="text-xs font-extrabold uppercase text-blue-800">Tus otros pedidos activos</p>
+                    <ul class="divide-y divide-blue-100">${misOtros}</ul>
+                </div>` : ''}
                 <div class="mt-4 flex flex-wrap gap-2">
                     <button type="button" id="rec-ubicacion"
                             class="rounded-xl border border-gray-200 bg-white px-3 py-3 text-xs font-bold text-gray-700 hover:border-indigo-300">
@@ -250,7 +273,8 @@
             paradas: r.paradas,
             progreso: 0,
             tramos: null,
-            cercanos: data.cercanos || []
+            cercanos: data.cercanos || [],
+            otros: data.otros || []
         } : null;
         clearInterval(temporizadorDesvio);
         temporizadorDesvio = null;
@@ -513,6 +537,24 @@
                     title: `Pedido cercano #${pedido.id_pedido}`
                 }).addTo(map).bindPopup(popupPedido(pedido, subtitulo));
             });
+            // Todos los demás pedidos (no incluidos ni de paso): solo contexto, no afectan la ruta.
+            const capaOtros = L.layerGroup();
+            (seguimiento.otros || []).forEach(pedido => {
+                if (!Number.isFinite(Number(pedido.lat)) || !Number.isFinite(Number(pedido.lng))) return;
+                const mio = !pedido.disponible;
+                L.marker([Number(pedido.lat), Number(pedido.lng)], {
+                    icon: crearIcono('', mio ? '#93c5fd' : '#9ca3af'),
+                    title: `Pedido #${pedido.id_pedido}`
+                }).addTo(capaOtros).bindPopup(popupPedido(
+                    pedido,
+                    mio ? 'Asignado a ti · fuera de la ruta actual (agrégalo desde la lista)'
+                        : 'Sin asignar · no queda de paso en tu ruta'
+                ));
+            });
+            capaOtros.addTo(map);
+            document.getElementById('rec-ver-otros')?.addEventListener('change', e => {
+                if (e.target.checked) capaOtros.addTo(map); else map.removeLayer(capaOtros);
+            });
             map.fitBounds(bounds.pad(0.12), { maxZoom: 16 });
             setTimeout(() => map.invalidateSize(), 100);
 
@@ -615,7 +657,12 @@
             const res = await fetch(BASE_URL + 'repartidores/tomar-pedido', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ id_pedido: idPedido })
+                body: new URLSearchParams({
+                    id_pedido: idPedido,
+                    ruta_pedidos: recIds.join(','),
+                    origen_lat: rutaSeguimiento?.origen?.lat ?? '',
+                    origen_lng: rutaSeguimiento?.origen?.lng ?? ''
+                })
             });
             const data = await res.json();
             if (data.ok) {
